@@ -4,9 +4,9 @@ import numpy as np
 import pandas as pd
 import sparse as sp
 from sklearn.model_selection import train_test_split
-from src.data_process_utils import mol_to_tensor
-from src.misc_utils import create_folder, pickle_save, pickle_load
-from src.CONSTS import BATCH_SIZE, NUM_CONFS_PER_MOL
+from data_process_utils import mol_to_tensor
+from utils import create_folder, pickle_save, pickle_load
+from CONSTS import BATCH_SIZE, NUM_CONFS_PER_MOL
 
 
 def get_train_val_test_smiles():
@@ -41,9 +41,12 @@ def get_and_save_data_batch(smiles_path, dest_data_path, batch_num=100000):
     R = []
     batch = 0
     for sim in smiles:
-        mol_path = "rdkit_folder/" + drugs_summ[sim]['pickle_path']
-        with open(mol_path, "rb") as f:
-            mol_dict = pickle.load(f)
+        try:
+            mol_path = "rdkit_folder/" + drugs_summ[sim]['pickle_path']
+            with open(mol_path, "rb") as f:
+                mol_dict = pickle.load(f)
+        except:
+            continue
 
         conf_df = pd.DataFrame(mol_dict['conformers'])
         conf_df.sort_values(by=['boltzmannweight'], ascending=False, inplace=True)
