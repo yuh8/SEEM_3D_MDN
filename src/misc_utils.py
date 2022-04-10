@@ -1,6 +1,7 @@
 import os
 import json
 import math
+import pickle
 import tensorflow as tf
 from .CONSTS import TF_EPS
 
@@ -11,6 +12,17 @@ def create_folder(directory):
             os.makedirs(directory)
     except OSError:
         print('Error: Creating directory. ' + directory)
+
+
+def pickle_save(file, save_path):
+    with open(save_path, 'wb') as handle:
+        pickle.dump(file, handle, protocol=pickle.HIGHEST_PROTOCOL)
+
+
+def pickle_load(load_path):
+    with open(load_path, 'rb') as handle:
+        file = pickle.load(handle)
+    return file
 
 
 def save_model_to_json(model, model_path):

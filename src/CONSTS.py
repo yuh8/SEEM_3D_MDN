@@ -25,7 +25,7 @@ FEATURE_DEPTH = len(ATOM_LIST) + len(CHARGES) + len(ATOM_HYBR_NAMES) + len(BOND_
 
 
 # Mixture Gaussian
-NUM_COMPS = 3
+NUM_COMPS = 1
 OUTPUT_DEPTH = NUM_COMPS + NUM_COMPS * 2
 
 

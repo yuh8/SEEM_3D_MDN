@@ -1,8 +1,8 @@
 import random
 import numpy as np
-from CONSTS import (MAX_NUM_ATOMS, FEATURE_DEPTH,
-                    CHARGES, ATOM_LIST, ATOM_HYBR_NAMES,
-                    BOND_NAMES, BOND_STEREO_NAMES,)
+from src.CONSTS import (MAX_NUM_ATOMS, FEATURE_DEPTH,
+                        CHARGES, ATOM_LIST, ATOM_HYBR_NAMES,
+                        BOND_NAMES, BOND_STEREO_NAMES,)
 np.set_printoptions(threshold=np.inf)
 np.set_printoptions(linewidth=1000)
 

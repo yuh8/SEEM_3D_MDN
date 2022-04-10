@@ -68,7 +68,7 @@ def core_model():
 
 
 def loss_func(y_true, y_pred):
-    comp_weight, mean, log_std = tf.split(y_pred, NUM_COMPS, axis=-1)
+    comp_weight, mean, log_std = tf.split(y_pred, 3, axis=-1)
     comp_weight = tf.nn.softmax(comp_weight, axis=-1)
     log_y_true = tf.math.log(y_true + TF_EPS)
     dist = tfd.Normal(loc=mean, scale=tf.math.exp(log_std))
@@ -155,7 +155,7 @@ if __name__ == "__main__":
     model.summary()
 
     model.fit(data_iterator(train_path),
-              epochs=4,
+              epochs=10,
               validation_data=data_iterator(val_path),
               validation_steps=val_steps,
               callbacks=callbacks,
