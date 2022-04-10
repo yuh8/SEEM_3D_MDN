@@ -25,7 +25,7 @@ def mol_to_tensor(mol, training=True):
     # shuffle atom sequence as data augumentation
     if training:
         random.shuffle(atom_indices)
-    pos = pos[atom_indices, ...]
+        coords[:pos.shape[0], ...] = pos[atom_indices, :]
     for idx, ii in enumerate(atom_indices):
         for idy, jj in enumerate(atom_indices):
             feature_vec = np.zeros(FEATURE_DEPTH)
@@ -56,7 +56,7 @@ def mol_to_tensor(mol, training=True):
                 stereo_feature_idx = bond_channel_start + len(BOND_NAMES) + stereo_idx
                 feature_vec[stereo_feature_idx] = 1
             # distance
-            dist = np.linalg.norm(pos[idx, 1:] - pos[idy, 1:])
+            dist = np.linalg.norm(pos[ii, 1:] - pos[jj, 1:])
             feature_vec[-1] = dist
 
             smi_graph[idx, idy, :] = feature_vec
@@ -68,7 +68,7 @@ def mol_to_tensor(mol, training=True):
 
 def connect_3rd_neighbour(mol, smi_graph):
     '''
-    Breadth first 3rd neighbor search
+    Breadth first 2nd and 3rd neighbor search
     '''
     mol_len = len([atom.GetIdx() for atom in mol.GetAtoms()])
     connect_map = smi_graph[..., :-1].sum(-1) - 2
@@ -76,7 +76,6 @@ def connect_3rd_neighbour(mol, smi_graph):
     virtual_bond_channel_start = len(ATOM_LIST) + len(CHARGES) + len(ATOM_HYBR_NAMES) + len(BOND_NAMES)
     third_neighbours = []
     for ii in range(mol_len):
-        feature_vec = np.zeros(FEATURE_DEPTH)
         connect_atom_idx_1sts = np.where(connect_map[ii, :] > 0)[0]
         num_neighbors = connect_atom_idx_1sts.shape[0]
         connect_atom_idx_2nds = np.array([])
@@ -89,15 +88,15 @@ def connect_3rd_neighbour(mol, smi_graph):
 
         connect_atom_idx_2nds = np.unique(connect_atom_idx_2nds)
         connect_atom_idx_2nds = connect_atom_idx_2nds.astype(int)
-        feature_vec[virtual_bond_channel_start] = 1
         for idx_2nd in connect_atom_idx_2nds:
+            feature_vec = smi_graph[ii, idx_2nd]
+            feature_vec[virtual_bond_channel_start] = 1
             smi_graph[ii, idx_2nd] = feature_vec
             smi_graph[idx_2nd, ii] = feature_vec
 
         if num_neighbors >= 3 or ii in third_neighbours:
             continue
 
-        feature_vec = np.zeros(FEATURE_DEPTH)
         # only choose a single 3rd neighbour
         for idx_2nd in connect_atom_idx_2nds:
             connect_atom_idx_3rds = np.where(connect_map[idx_2nd, :] > 0)[0]
@@ -106,9 +105,14 @@ def connect_3rd_neighbour(mol, smi_graph):
             if connect_atom_idx_3rds.shape[0] == 0:
                 continue
             connect_atom_idx_3rd = connect_atom_idx_3rds[0]
+            feature_vec = smi_graph[ii, connect_atom_idx_3rd]
             feature_vec[virtual_bond_channel_start + 1] = 1
             smi_graph[ii, connect_atom_idx_3rd] = feature_vec
             smi_graph[connect_atom_idx_3rd, ii] = feature_vec
             third_neighbours.append(connect_atom_idx_3rd)
             break
+    d = smi_graph[..., -1]
+    mask = smi_graph[..., :-1].sum(-1) > 2
+    d *= mask
+    smi_graph[..., -1] = d
     return smi_graph
