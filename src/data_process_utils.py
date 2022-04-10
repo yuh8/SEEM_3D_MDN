@@ -7,7 +7,7 @@ np.set_printoptions(threshold=np.inf)
 np.set_printoptions(linewidth=1000)
 
 
-def mol_to_tensor(mol):
+def mol_to_tensor(mol, training=True):
     smi_graph = np.zeros((MAX_NUM_ATOMS, MAX_NUM_ATOMS, FEATURE_DEPTH))
     atom_indices = [atom.GetIdx() for atom in mol.GetAtoms()]
     elements = [atom.GetSymbol() for atom in mol.GetAtoms()]
@@ -23,7 +23,8 @@ def mol_to_tensor(mol):
     coords[:pos.shape[0], ...] = pos
 
     # shuffle atom sequence as data augumentation
-    random.shuffle(atom_indices)
+    if training:
+        random.shuffle(atom_indices)
     pos = pos[atom_indices, ...]
     for idx, ii in enumerate(atom_indices):
         for idy, jj in enumerate(atom_indices):

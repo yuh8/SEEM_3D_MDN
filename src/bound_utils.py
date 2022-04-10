@@ -1,6 +1,6 @@
 import numpy as np
 from rdkit import DistanceGeometry
-from rdkit.Chem import Mol, rdMolAlign
+from rdkit.Chem import rdMolAlign
 from rdkit.Chem import rdDistGeom
 
 MAX_DISTANCE = 1E3
@@ -33,17 +33,15 @@ def embed_bounds_matrix(mol, bounds_matrix, seed):
     return rdDistGeom.EmbedMolecule(mol, ps)
 
 
-def embed_conformer(mol, senders, receivers, means, stds, seed):
+def embed_conformer(mol, means, stds, seed):
     bounds_matrix = get_init_bounds_matrix(mol)
-
-    for sender, receiver, mean, std in zip(senders, receivers, means, stds):
-        if sender > receiver:
-            continue
-
-        # NB: s < r
-        bounds_matrix[sender, receiver] = np.exp(mean + std)
-        bounds_matrix[receiver, sender] = np.max([np.exp(mean - std), MIN_DISTANCE])
-
+    num_atoms = len([atom.GetSymbol() for atom in mol.GetAtoms()])
+    bound_upper = np.triu(means, 1) + np.triu(stds, 1)
+    bound_lower = np.triu(means, 1) - np.triu(stds, 1)
+    bounds_matrix = np.triu(bound_upper, 1) + np.triu(bound_lower, 1).T
+    bounds_matrix = bounds_matrix[:num_atoms, :num_atoms]
+    bounds_matrix[bounds_matrix < 0] = MIN_DISTANCE
+    bounds_matrix = np.double(bounds_matrix)
     return embed_bounds_matrix(mol, bounds_matrix, seed)
 
 

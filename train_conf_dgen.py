@@ -70,16 +70,28 @@ def core_model():
 def loss_func(y_true, y_pred):
     comp_weight, mean, log_std = tf.split(y_pred, 3, axis=-1)
     comp_weight = tf.nn.softmax(comp_weight, axis=-1)
-    log_y_true = tf.math.log(y_true + TF_EPS)
     dist = tfd.Normal(loc=mean, scale=tf.math.exp(log_std))
     # [BATCH, MAX_NUM_ATOMS, MAX_NUM_ATOMS, NUM_COMPS]
-    _loss = comp_weight * dist.prob(log_y_true)
+    _loss = comp_weight * dist.prob(y_true)
     # [BATCH, MAX_NUM_ATOMS, MAX_NUM_ATOMS]
     _loss = tf.reduce_sum(_loss, axis=-1)
     _loss = tf.math.log(_loss + TF_EPS)
     mask = tf.squeeze(tf.cast(y_true > 0, tf.float32))
     _loss *= mask
     loss = -tf.reduce_sum(_loss, axis=[1, 2])
+    return loss
+
+
+def distance_loss(y_true, y_pred):
+    comp_weight, mean, _ = tf.split(y_pred, 3, axis=-1)
+    comp_weight = tf.nn.softmax(comp_weight, axis=-1)
+    log_y_true = tf.math.log(y_true + TF_EPS)
+    se = (mean - log_y_true)**2
+    se *= comp_weight
+    se = tf.reduce_sum(se, axis=-1)
+    mask = tf.squeeze(tf.cast(y_true > 0, tf.float32))
+    se *= mask
+    loss = tf.reduce_sum(se, axis=[1, 2])
     return loss
 
 
@@ -127,9 +139,9 @@ def data_iterator_test(data_path):
 
 if __name__ == "__main__":
     freeze_support()
-    ckpt_path = 'checkpoints/generator_d_{}/'.format(today)
+    ckpt_path = 'checkpoints/generator_d_K_{}/'.format(NUM_COMPS)
     create_folder(ckpt_path)
-    create_folder("conf_model_d_{}".format(today))
+    create_folder("conf_model_d_K_{}".format(NUM_COMPS))
     train_path = 'D:/seem_3d_data/train_data/train_batch/'
     val_path = 'D:/seem_3d_data/test_data/val_batch/'
     test_path = 'D:/seem_3d_data/test_data/test_batch/'
@@ -149,9 +161,9 @@ if __name__ == "__main__":
     model = model = keras.Model(inputs=X, outputs=logits)
 
     model.compile(optimizer=get_optimizer(),
-                  loss=loss_func)
+                  loss=loss_func, metrics=[distance_loss])
 
-    save_model_to_json(model, "conf_model_d_{}/conf_model_d.json".format(today))
+    save_model_to_json(model, "conf_model_d_K_{}/conf_model_d.json".format(NUM_COMPS))
     model.summary()
 
     model.fit(data_iterator(train_path),
@@ -165,6 +177,6 @@ if __name__ == "__main__":
 
     # save trained model in two ways
     model.save("conf_model_d_full_{}/".format(today))
-    model_new = models.load_model("conf_model_d_full_{}/".format(today))
+    model_new = models.load_model("conf_model_d_full_K_{}/".format(NUM_COMPS))
     res = model_new.evaluate(data_iterator_test(test_path),
                              return_dict=True)

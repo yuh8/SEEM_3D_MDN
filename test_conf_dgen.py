@@ -5,9 +5,10 @@ import pandas as pd
 import tensorflow as tf
 import tensorflow_probability as tfp
 from multiprocessing import freeze_support
+from rdkit.Chem.Draw import MolsToGridImage
 from src.data_process_utils import mol_to_tensor
 from src.bound_utils import embed_conformer, align_conformers
-from src.misc_utils import load_json_model, create_folder, pickle_load
+from src.misc_utils import load_json_model, create_folder, pickle_load, pickle_save
 from src.CONSTS import TF_EPS, NUM_CONFS_PER_MOL
 
 tfd = tfp.distributions
@@ -30,6 +31,7 @@ def loss_func(y_true, y_pred):
 
 
 def get_test_mol(smiles_path):
+    mols = []
     drugs_file = "D:/seem_3d_data/data/rdkit_folder/summary_drugs.json"
     with open(drugs_file, "r") as f:
         drugs_summ = json.load(f)
@@ -49,19 +51,22 @@ def get_test_mol(smiles_path):
             continue
         for _, mol_row in conf_df.iloc[:NUM_CONFS_PER_MOL, :].iterrows():
             mol = mol_row.rd_mol
-            G, _ = mol_to_tensor(mol)
+            G, _ = mol_to_tensor(mol, training=False)
             G_in = G[..., :-1]
-            d = G[..., -1]
             G_in = np.expand_dims(G_in, axis=0)
-            d = np.expand_dims(d, axis=-1)
+            # d = np.expand_dims(d, axis=-1)
             d_pred = model(G_in, training=False).numpy()[0]
-            senders, receivers = np.where(np.triu(G[..., :-1].sum(-1), 1) == 4)
-            means = d_pred[..., 1][senders, receivers]
-            stds = np.exp(d_pred[..., 2])[senders, receivers]
-            embed_conformer(mol, senders, receivers, means, stds, seed=43)
-            align_conformers(mol)
+            d_pred_mean = d_pred[..., 1]
+            d_pred_std = np.exp(d_pred[..., 2])
 
+            embed_conformer(mol, d_pred_mean, d_pred_std, seed=43)
+            align_conformers(mol)
+            plot = MolsToGridImage([mol])
+            plot.show()
             breakpoint()
+            mols.append(mol)
+            if len(mols) % 10 == 0:
+                pickle_save(mols, 'generated_confs.pkl')
 
 
 if __name__ == "__main__":
