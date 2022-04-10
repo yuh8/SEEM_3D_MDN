@@ -85,8 +85,7 @@ def loss_func(y_true, y_pred):
 def distance_loss(y_true, y_pred):
     comp_weight, mean, _ = tf.split(y_pred, 3, axis=-1)
     comp_weight = tf.nn.softmax(comp_weight, axis=-1)
-    log_y_true = tf.math.log(y_true + TF_EPS)
-    se = (mean - log_y_true)**2
+    se = (mean - y_true)**2
     se *= comp_weight
     se = tf.reduce_sum(se, axis=-1)
     mask = tf.squeeze(tf.cast(y_true > 0, tf.float32))
@@ -95,14 +94,24 @@ def distance_loss(y_true, y_pred):
     return loss
 
 
-def get_optimizer(finetune=False):
-    lr = 0.0001
-    if finetune:
-        lr = 0.00001
-    lr_fn = tf.keras.optimizers.schedules.PiecewiseConstantDecay(
-        [200000, 400000, 600000], [lr, lr / 10, lr / 50, lr / 100],
-        name=None
-    )
+class CustomSchedule(tf.keras.optimizers.schedules.LearningRateSchedule):
+    def __init__(self, d_model, warmup_steps=4000):
+        super(CustomSchedule, self).__init__()
+
+        self.d_model = d_model
+        self.d_model = tf.cast(self.d_model, tf.float32)
+
+        self.warmup_steps = warmup_steps
+
+    def __call__(self, step):
+        arg1 = tf.math.rsqrt(step)
+        arg2 = step * (self.warmup_steps ** -1.5)
+
+        return tf.math.rsqrt(self.d_model) * tf.math.minimum(arg1, arg2)
+
+
+def get_optimizer():
+    lr_fn = CustomSchedule(512)
     opt_op = tf.keras.optimizers.Adam(learning_rate=lr_fn)
     return opt_op
 
@@ -167,7 +176,7 @@ if __name__ == "__main__":
     model.summary()
 
     model.fit(data_iterator(train_path),
-              epochs=10,
+              epochs=20,
               validation_data=data_iterator(val_path),
               validation_steps=val_steps,
               callbacks=callbacks,
