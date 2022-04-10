@@ -10,6 +10,14 @@ from multiprocessing import freeze_support
 from src.misc_utils import create_folder, save_model_to_json, norm_pdf
 from src.CONSTS import (MAX_NUM_ATOMS, FEATURE_DEPTH, NUM_COMPS, OUTPUT_DEPTH, TF_EPS)
 
+gpus = tf.config.experimental.list_physical_devices('GPU')
+if gpus:
+    try:
+        for gpu in gpus:
+            tf.config.experimental.set_memory_growth(gpu, True)
+    except RuntimeError as e:
+        print(e)
+
 today = str(date.today())
 tfd = tfp.distributions
 
@@ -185,7 +193,7 @@ if __name__ == "__main__":
                          return_dict=True)
 
     # save trained model in two ways
-    model.save("conf_model_d_full_{}/".format(today))
+    model.save("conf_model_d_full_K_{}/".format(NUM_COMPS))
     model_new = models.load_model("conf_model_d_full_K_{}/".format(NUM_COMPS))
     res = model_new.evaluate(data_iterator_test(test_path),
                              return_dict=True)
