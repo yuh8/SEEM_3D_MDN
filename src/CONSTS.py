@@ -21,7 +21,8 @@ CHARGES = [-1, 0, 1, 2, 3]
 HYBR_DICT = Chem.rdchem.HybridizationType.values
 ATOM_HYBR_NAMES = list(HYBR_DICT.values())[1:7]
 
-FEATURE_DEPTH = len(ATOM_LIST) + len(CHARGES) + len(ATOM_HYBR_NAMES) + len(BOND_NAMES) + len(BOND_STEREO_NAMES) + 1
+# introduce a virtual 2rd and 3rd order bound
+FEATURE_DEPTH = len(ATOM_LIST) + len(CHARGES) + len(ATOM_HYBR_NAMES) + len(BOND_NAMES) + 2 + len(BOND_STEREO_NAMES) + 1
 
 
 # Mixture Gaussian

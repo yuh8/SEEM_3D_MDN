@@ -5,12 +5,12 @@ import pandas as pd
 import sparse as sp
 from sklearn.model_selection import train_test_split
 from data_process_utils import mol_to_tensor
-from utils import create_folder, pickle_save, pickle_load
-from CONSTS import BATCH_SIZE, NUM_CONFS_PER_MOL
+from src.misc_utils import create_folder, pickle_save, pickle_load
+from src.CONSTS import BATCH_SIZE, NUM_CONFS_PER_MOL
 
 
 def get_train_val_test_smiles():
-    drugs_file = "rdkit_folder/summary_drugs.json"
+    drugs_file = "D:/seem_3d_data/data/rdkit_folder/summary_drugs.json"
     with open(drugs_file, "r") as f:
         drugs_summ = json.load(f)
 
