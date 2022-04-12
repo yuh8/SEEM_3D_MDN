@@ -16,7 +16,7 @@ BOND_STEREO_NAMES = list(BOND_STEREO_DICT.values())
 # Atom features
 MAX_NUM_ATOMS = 160
 ATOM_LIST = ['H', 'C', 'N', 'O', 'F', 'S', 'Cl', 'Br', 'P', 'I', 'Na', 'B', 'Si', 'Se', 'K', 'Bi']
-CHARGES = [-1, 0, 1, 2, 3]
+CHARGES = [-2, -1, 0, 1, 2, 3]
 
 HYBR_DICT = Chem.rdchem.HybridizationType.values
 ATOM_HYBR_NAMES = list(HYBR_DICT.values())[1:7]

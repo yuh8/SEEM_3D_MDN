@@ -63,26 +63,38 @@ def mol_to_tensor(mol, training=True):
             feature_vec[-1] = 0
             smi_graph[idy, idx, :] = feature_vec
 
+    assert smi_graph[..., :-1].sum(-1).max() == 4
+
     return smi_graph, coords
 
 
 def connect_3rd_neighbour(mol, smi_graph):
     '''
     Breadth first 2nd and 3rd neighbor search
+    ##########################################
+    Direct neighbours: atoms that are directly connected
+    2nd neighbours: atoms that are connected to direct neighbours but are not direct neighbours
+    3rd neighbours: atoms connected to 2nd neighbours but are neither direct nor 2nd neighbours
     '''
-    mol_len = len([atom.GetIdx() for atom in mol.GetAtoms()])
-    connect_map = smi_graph[..., :-1].sum(-1) - 2
+    mol_len = len(mol.GetAtoms())
+    connect_map = smi_graph[..., :-1].sum(-1)
     np.fill_diagonal(connect_map, 0)
     virtual_bond_channel_start = len(ATOM_LIST) + len(CHARGES) + len(ATOM_HYBR_NAMES) + len(BOND_NAMES)
     third_neighbours = []
     for ii in range(mol_len):
-        connect_atom_idx_1sts = np.where(connect_map[ii, :] > 0)[0]
+        # direct neighbnours
+        connect_atom_idx_1sts = np.where(connect_map[ii, :] > 2)[0]
         num_neighbors = connect_atom_idx_1sts.shape[0]
         connect_atom_idx_2nds = np.array([])
+        # 2nd neigbours
         for idx_1st in connect_atom_idx_1sts:
-            _connect_atom_idx_2nds = np.where(connect_map[idx_1st, :] > 0)[0]
+            _connect_atom_idx_2nds = np.where(connect_map[idx_1st, :] > 2)[0]
             _connect_atom_idx_2nds = _connect_atom_idx_2nds[_connect_atom_idx_2nds != ii]
             connect_atom_idx_2nds = np.append(connect_atom_idx_2nds, _connect_atom_idx_2nds)
+
+        # 2nd neighbour should not be direct neighbours
+        filter_cond = [idx not in connect_atom_idx_1sts for idx in connect_atom_idx_2nds]
+        connect_atom_idx_2nds = connect_atom_idx_2nds[filter_cond]
         if connect_atom_idx_2nds.shape[0] == 0:
             continue
 
@@ -99,7 +111,8 @@ def connect_3rd_neighbour(mol, smi_graph):
 
         # only choose a single 3rd neighbour
         for idx_2nd in connect_atom_idx_2nds:
-            connect_atom_idx_3rds = np.where(connect_map[idx_2nd, :] > 0)[0]
+            connect_atom_idx_3rds = np.where(connect_map[idx_2nd, :] > 2)[0]
+            # 3rd neighbours should be neither 2nd or direct neighbours
             filter_idx = [idx not in connect_atom_idx_1sts and idx not in connect_atom_idx_2nds for idx in connect_atom_idx_3rds]
             connect_atom_idx_3rds = connect_atom_idx_3rds[filter_idx]
             if connect_atom_idx_3rds.shape[0] == 0:
@@ -115,4 +128,7 @@ def connect_3rd_neighbour(mol, smi_graph):
     mask = smi_graph[..., :-1].sum(-1) > 2
     d *= mask
     smi_graph[..., -1] = d
+
+    assert smi_graph[..., :-1].sum(-1).max() == 4
+
     return smi_graph
