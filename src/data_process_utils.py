@@ -60,10 +60,7 @@ def mol_to_tensor(mol, training=True):
             feature_vec[-1] = dist
 
             smi_graph[idx, idy, :] = feature_vec
-            feature_vec[-1] = 0
             smi_graph[idy, idx, :] = feature_vec
-
-    assert smi_graph[..., :-1].sum(-1).max() == 4
 
     return smi_graph, coords
 
@@ -128,7 +125,4 @@ def connect_3rd_neighbour(mol, smi_graph):
     mask = smi_graph[..., :-1].sum(-1) > 2
     d *= mask
     smi_graph[..., -1] = d
-
-    assert smi_graph[..., :-1].sum(-1).max() == 4
-
     return smi_graph

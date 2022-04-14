@@ -11,23 +11,28 @@ if gpus:
         print(e)
 
 
-def conv2d_block(X, num_filters, kernel_size, padding='SAME'):
-    out = tf.keras.layers.Conv2D(filters=num_filters,
-                                 kernel_size=kernel_size,
-                                 strides=1,
-                                 padding=padding,
-                                 activation=None,
-                                 use_bias=False)(X)
-    out = tf.keras.layers.LayerNormalization(epsilon=1e-9)(out)
-    return out
+def conv2d_block(input, num_filters, kernel_size=3, padding='SAME'):
+    x = tf.keras.layers.Conv2D(num_filters,
+                               kernel_size=kernel_size,
+                               padding=padding)(input)
+    x = tf.keras.layers.LayerNormalization(epsilon=1e-9)(x)
+    x = tf.keras.layers.Activation("relu")(x)
+
+    x = tf.keras.layers.Conv2D(num_filters, 3, padding="same")(x)
+    x = tf.keras.layers.LayerNormalization(epsilon=1e-9)(x)
+    x = tf.keras.layers.Activation("relu")(x)
+
+    return x
 
 
-def res_block(X, num_filters, kernel_size, padding='SAME'):
-    out = conv2d_block(X, num_filters,
-                       kernel_size, padding=padding)
-    out = tf.keras.layers.ReLU()(out)
-    out = conv2d_block(out, num_filters,
-                       kernel_size, padding=padding)
-    out = tf.keras.layers.Add()([out, X])
-    out = tf.keras.layers.ReLU()(out)
-    return out
+def encoder_block(X, num_filters):
+    X = conv2d_block(X, num_filters)
+    p = tf.keras.layers.MaxPool2D(2, 2)(X)
+    return X, p
+
+
+def decoder_block(X, skip_features, num_filters):
+    X = tf.keras.layers.Conv2DTranspose(num_filters, (2, 2), strides=2, padding="same")(X)
+    X = tf.keras.layers.Concatenate()([X, skip_features])
+    X = conv2d_block(X, num_filters)
+    return X

@@ -7,8 +7,12 @@ from datetime import date
 from tensorflow import keras
 from tensorflow.keras import layers, models
 from multiprocessing import freeze_support
-from src.misc_utils import create_folder, save_model_to_json, norm_pdf
+from src.embed_utils import encoder_block, decoder_block, conv2d_block
+from src.misc_utils import create_folder, save_model_to_json
 from src.CONSTS import (MAX_NUM_ATOMS, FEATURE_DEPTH, NUM_COMPS, OUTPUT_DEPTH, TF_EPS)
+
+np.set_printoptions(threshold=np.inf)
+np.set_printoptions(linewidth=1000)
 
 gpus = tf.config.experimental.list_physical_devices('GPU')
 if gpus:
@@ -28,54 +32,26 @@ def core_model():
     '''
     # [BATCH, MAX_NUM_ATOMS, MAX_NUM_ATOMS, FEATURE_DEPTH]
     inputs = layers.Input(shape=(MAX_NUM_ATOMS, MAX_NUM_ATOMS, FEATURE_DEPTH - 1))
-    x = layers.Conv2D(32, 3, strides=2, padding="same")(inputs)
-    x = layers.LayerNormalization(epsilon=1e-9)(x)
-    x = layers.Activation("relu")(x)
+    s1, p1 = encoder_block(inputs, 32)
+    s2, p2 = encoder_block(p1, 64)
+    s3, p3 = encoder_block(p2, 128)
+    s4, p4 = encoder_block(p3, 128)
 
-    previous_block_activation = x  # Set aside residual
+    b1 = conv2d_block(p4, 256)
 
-    # Blocks 1, 2, 3 are identical apart from the feature depth.
-    for filters in [64, 128, 256]:
-        x = layers.Activation("relu")(x)
-        x = layers.SeparableConv2D(filters, 3, padding="same")(x)
-        x = layers.LayerNormalization(epsilon=1e-9)(x)
-
-        x = layers.Activation("relu")(x)
-        x = layers.SeparableConv2D(filters, 3, padding="same")(x)
-        x = layers.LayerNormalization(epsilon=1e-9)(x)
-
-        x = layers.MaxPooling2D(3, strides=2, padding="same")(x)
-
-        # Project residual
-        residual = layers.Conv2D(filters, 1, strides=2, padding="same")(
-            previous_block_activation
-        )
-        x = layers.add([x, residual])  # Add back residual
-        previous_block_activation = x  # Set aside next residual
-
-    for filters in [256, 128, 64, 32]:
-        x = layers.Activation("relu")(x)
-        x = layers.Conv2DTranspose(filters, 3, padding="same")(x)
-        x = layers.LayerNormalization(epsilon=1e-9)(x)
-
-        x = layers.Activation("relu")(x)
-        x = layers.Conv2DTranspose(filters, 3, padding="same")(x)
-        x = layers.LayerNormalization(epsilon=1e-9)(x)
-
-        x = layers.UpSampling2D(2)(x)
-
-        # Project residual
-        residual = layers.UpSampling2D(2)(previous_block_activation)
-        residual = layers.Conv2D(filters, 1, padding="same")(residual)
-        x = layers.add([x, residual])  # Add back residual
-        previous_block_activation = x  # Set aside next residual
+    d1 = decoder_block(b1, s4, 128)
+    d2 = decoder_block(d1, s3, 128)
+    d3 = decoder_block(d2, s2, 64)
+    d4 = decoder_block(d3, s1, 32)
 
     # Add a per-pixel classification layer
-    logits = layers.Conv2D(OUTPUT_DEPTH, 3, activation=None, padding="same", use_bias=False)(x)
+    logits = layers.Conv2D(OUTPUT_DEPTH, 3, activation=None, padding="same", use_bias=False)(d4)
     return inputs, logits
 
 
 def loss_func(y_true, y_pred):
+    # compute only for upper triangle
+    y_true = tf.linalg.band_part(y_true, 0, -1)
     comp_weight, mean, log_std = tf.split(y_pred, 3, axis=-1)
     comp_weight = tf.nn.softmax(comp_weight, axis=-1)
     dist = tfd.Normal(loc=mean, scale=tf.math.exp(log_std))
@@ -90,7 +66,9 @@ def loss_func(y_true, y_pred):
     return loss
 
 
-def distance_loss(y_true, y_pred):
+def distance_rmse(y_true, y_pred):
+    # compute only for upper triangle
+    y_true = tf.linalg.band_part(y_true, 0, -1)
     comp_weight, mean, _ = tf.split(y_pred, 3, axis=-1)
     comp_weight = tf.nn.softmax(comp_weight, axis=-1)
     se = (mean - y_true)**2
@@ -98,7 +76,8 @@ def distance_loss(y_true, y_pred):
     se = tf.reduce_sum(se, axis=-1)
     mask = tf.squeeze(tf.cast(y_true > 0, tf.float32))
     se *= mask
-    loss = tf.reduce_sum(se, axis=[1, 2])
+    loss = tf.reduce_sum(se, axis=[1, 2]) / tf.reduce_sum(mask, axis=[1, 2])
+    loss = tf.math.sqrt(loss)
     return loss
 
 
@@ -119,7 +98,7 @@ class CustomSchedule(tf.keras.optimizers.schedules.LearningRateSchedule):
 
 
 def get_optimizer():
-    lr_fn = CustomSchedule(512)
+    lr_fn = 0.0001
     opt_op = tf.keras.optimizers.Adam(learning_rate=lr_fn)
     return opt_op
 
@@ -178,7 +157,7 @@ if __name__ == "__main__":
     model = model = keras.Model(inputs=X, outputs=logits)
 
     model.compile(optimizer=get_optimizer(),
-                  loss=loss_func, metrics=[distance_loss])
+                  loss=loss_func, metrics=[distance_rmse])
 
     save_model_to_json(model, "conf_model_d_K_{}/conf_model_d.json".format(NUM_COMPS))
     model.summary()
