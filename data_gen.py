@@ -4,7 +4,7 @@ import numpy as np
 import pandas as pd
 import sparse as sp
 from sklearn.model_selection import train_test_split
-from src.data_process_utils import verfiy_mol, mol_to_tensor, connect_3rd_neighbour, verify_mol
+from src.data_process_utils import mol_to_tensor, connect_3rd_neighbour, verify_mol
 from src.misc_utils import create_folder, pickle_save, pickle_load
 from src.CONSTS import BATCH_SIZE, NUM_CONFS_PER_MOL
 

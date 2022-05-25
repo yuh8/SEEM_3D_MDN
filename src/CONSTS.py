@@ -11,6 +11,7 @@ BOND_STEREO_DICT = Chem.rdchem.BondStereo.values
 BOND_NAMES = list(BOND_DICT.values())[1:4]
 BOND_NAMES.append(list(BOND_DICT.values())[12])
 BOND_STEREO_NAMES = list(BOND_STEREO_DICT.values())
+RING_SIZES = range(3, 10)
 
 
 # Atom features
@@ -18,11 +19,20 @@ MAX_NUM_ATOMS = 160
 ATOM_LIST = ['H', 'C', 'N', 'O', 'F', 'S', 'Cl', 'Br', 'P', 'I', 'Na', 'B', 'Si', 'Se', 'K', 'Bi']
 CHARGES = [-2, -1, 0, 1, 2, 3]
 
-HYBR_DICT = Chem.rdchem.HybridizationType.values
-ATOM_HYBR_NAMES = list(HYBR_DICT.values())[1:7]
+CHIR_DICT = Chem.rdchem.ChiralType.values
+ATOM_CHIR_NAMES = list(CHIR_DICT.values())
 
 # introduce a virtual 2rd and 3rd order bound
-FEATURE_DEPTH = len(ATOM_LIST) + len(CHARGES) + len(ATOM_HYBR_NAMES) + len(BOND_NAMES) + 2 + len(BOND_STEREO_NAMES) + 1
+ATOM_TYPE_SIZE = len(ATOM_LIST)
+CHARGE_TYPE_SIZE = len(CHARGES)
+CHIR_TYPE_SIZE = len(ATOM_CHIR_NAMES)
+BOND_TYPE_SIZE = len(BOND_NAMES) + 2  # include 2 virtual bonds
+BOND_STEREOTYPE_SIZE = len(BOND_STEREO_NAMES)
+BOND_RINGTYPE_SIZE = len(RING_SIZES) + 1
+BOND_ISCONJ_SIZE = 2
+
+FEATURE_DEPTH = ATOM_TYPE_SIZE + CHARGE_TYPE_SIZE + CHIR_TYPE_SIZE +\
+    BOND_TYPE_SIZE + BOND_STEREOTYPE_SIZE + BOND_RINGTYPE_SIZE + BOND_ISCONJ_SIZE
 
 
 # Mixture Gaussian
