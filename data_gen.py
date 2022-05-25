@@ -4,7 +4,7 @@ import numpy as np
 import pandas as pd
 import sparse as sp
 from sklearn.model_selection import train_test_split
-from data_process_utils import mol_to_tensor
+from src.data_process_utils import verfiy_mol, mol_to_tensor, connect_3rd_neighbour, verify_mol
 from src.misc_utils import create_folder, pickle_save, pickle_load
 from src.CONSTS import BATCH_SIZE, NUM_CONFS_PER_MOL
 
@@ -32,7 +32,7 @@ def get_train_val_test_smiles():
 
 
 def get_and_save_data_batch(smiles_path, dest_data_path, batch_num=100000):
-    drugs_file = "rdkit_folder/summary_drugs.json"
+    drugs_file = "D:/seem_3d_data/data/rdkit_folder/summary_drugs.json"
     with open(drugs_file, "r") as f:
         drugs_summ = json.load(f)
 
@@ -42,10 +42,11 @@ def get_and_save_data_batch(smiles_path, dest_data_path, batch_num=100000):
     batch = 0
     for sim in smiles:
         try:
-            mol_path = "rdkit_folder/" + drugs_summ[sim]['pickle_path']
+            mol_path = "D:/seem_3d_data/data/rdkit_folder/" + drugs_summ[sim]['pickle_path']
             with open(mol_path, "rb") as f:
                 mol_dict = pickle.load(f)
-        except:
+        except Exception as e:
+            print(e)
             continue
 
         conf_df = pd.DataFrame(mol_dict['conformers'])
@@ -54,10 +55,16 @@ def get_and_save_data_batch(smiles_path, dest_data_path, batch_num=100000):
             continue
         for _, mol_row in conf_df.iloc[:NUM_CONFS_PER_MOL, :].iterrows():
             mol = mol_row.rd_mol
+            if not verify_mol(mol):
+                continue
+
             try:
                 g_d, r = mol_to_tensor(mol)
-            except:
+                g_d = connect_3rd_neighbour(mol, g_d)
+            except Exception as e:
+                print(e)
                 continue
+
             G.append(g_d)
             R.append(r)
             if len(G) > BATCH_SIZE:

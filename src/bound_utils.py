@@ -24,6 +24,7 @@ def embed_bounds_matrix(mol, bounds_matrix, seed):
     DistanceGeometry.DoTriangleSmoothing(bounds_matrix)
 
     ps = rdDistGeom.EmbedParameters()
+    ps.maxAttempts = 100
     ps.numThreads = 0  # max number of threads supported by the system will be used
     ps.useRandomCoords = True  # recommended for larger molecules
     ps.clearConfs = False
@@ -35,13 +36,18 @@ def embed_bounds_matrix(mol, bounds_matrix, seed):
 
 def embed_conformer(mol, means, stds, seed):
     bounds_matrix = get_init_bounds_matrix(mol)
+    breakpoint()
     num_atoms = len([atom.GetSymbol() for atom in mol.GetAtoms()])
     bound_upper = np.triu(means, 1) + np.triu(stds, 1)
+    breakpoint()
     bound_lower = np.triu(means, 1) - np.triu(stds, 1)
     bounds_matrix = np.triu(bound_upper, 1) + np.triu(bound_lower, 1).T
     bounds_matrix = bounds_matrix[:num_atoms, :num_atoms]
     bounds_matrix[bounds_matrix < 0] = MIN_DISTANCE
-    bounds_matrix = np.double(bounds_matrix)
+    bounds_matrix[bounds_matrix == 0] = MIN_DISTANCE
+    bounds_matrix = bounds_matrix.astype(dtype=np.float)
+    print(embed_bounds_matrix(mol, bounds_matrix, seed))
+    breakpoint()
     return embed_bounds_matrix(mol, bounds_matrix, seed)
 
 
