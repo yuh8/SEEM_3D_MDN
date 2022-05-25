@@ -2,7 +2,8 @@ import random
 import numpy as np
 import networkx as nx
 from .xyz2mol import xyz2mol
-from .CONSTS import (BOND_ISCONJ_SIZE, BOND_RINGTYPE_SIZE, MAX_NUM_ATOMS, FEATURE_DEPTH,
+from .CONSTS import (BOND_RINGTYPE_SIZE,
+                     MAX_NUM_ATOMS, FEATURE_DEPTH,
                      CHARGES, ATOM_LIST, ATOM_CHIR_NAMES,
                      BOND_NAMES, BOND_STEREO_NAMES, RING_SIZES,
                      ATOM_TYPE_SIZE, CHARGE_TYPE_SIZE, CHIR_TYPE_SIZE,
@@ -32,9 +33,9 @@ def mol_to_nx(mol):
 
 def get_atom_channel_feature(element, charge, chir):
     # element
-    atom_idx_ii = ATOM_LIST.index(element)
+    atom_idx = ATOM_LIST.index(element)
     atom_type_channel = np.zeros(ATOM_TYPE_SIZE)
-    atom_type_channel[atom_idx_ii] = 1
+    atom_type_channel[atom_idx] = 1
 
     # charge
     charge_idx = CHARGES.index(charge)
@@ -51,26 +52,23 @@ def get_atom_channel_feature(element, charge, chir):
                       chir_type_channel])
 
 
-def get_bond_channel_feature(bond_idx=None, stereo_idx=None,
-                             ring_indices=[], isconj_idx=None):
+def get_bond_channel_feature(bond_idx=None,
+                             stereo_idx=None,
+                             ring_indices=[]):
 
     bond_type_channel = np.zeros(BOND_TYPE_SIZE)
     bond_stereo_channel = np.zeros(BOND_STEREOTYPE_SIZE)
     bond_ring_channel = np.zeros(BOND_RINGTYPE_SIZE)
-    bond_isconj_channel = np.zeros(BOND_ISCONJ_SIZE)
-    if bond_idx:
+    if not bond_idx is None:
         bond_type_channel[bond_idx] = 1
         bond_stereo_channel[stereo_idx] = 1
 
         for ring_idx in ring_indices:
             bond_ring_channel[ring_idx] = 1
 
-        bond_isconj_channel[isconj_idx] = 1
-
     return np.hstack([bond_type_channel,
                       bond_stereo_channel,
-                      bond_ring_channel,
-                      bond_isconj_channel])
+                      bond_ring_channel])
 
 
 def verify_mol(mol):
@@ -91,9 +89,12 @@ def verify_mol(mol):
         'embed_chiral': True,
     }
     try:
-        return xyz2mol(**data)
-    except:
-        return None
+        mol = xyz2mol(**data)
+    except Exception as e:
+        print(e)
+        return False
+
+    return True
 
 
 def mol_to_tensor(mol, training=True):
@@ -119,8 +120,7 @@ def mol_to_tensor(mol, training=True):
         for idy, jj in enumerate(atom_indices):
             if idx == idy:
                 bond_channel_feature = get_bond_channel_feature()
-                atom_channel_feature = get_atom_channel_feature(elements[ii],
-                                                                charges[ii], chirs[ii])
+                atom_channel_feature = get_atom_channel_feature(elements[ii], charges[ii], chirs[ii])
                 feature_vec = np.hstack((atom_channel_feature, bond_channel_feature))
                 smi_graph[idx, idy, :] = feature_vec
 
@@ -149,17 +149,13 @@ def mol_to_tensor(mol, training=True):
                 if len(ring_indices) == 0:
                     ring_indices = [0]
 
-                # is conjugated
-                isconj_idx = 0
-                if bond.GetIsConjugated():
-                    isconj_idx = 1
-                bond_channel_feature = get_bond_channel_feature(bond_idx, stereo_idx, ring_sizes, isconj_idx)
+                bond_channel_feature = get_bond_channel_feature(bond_idx, stereo_idx, ring_indices)
 
                 # update graph
                 feature_vec = np.hstack((atom_channel_feature, bond_channel_feature))
                 smi_graph[idx, idy, :] = feature_vec
                 smi_graph[idy, idx, :] = feature_vec
-
+                assert (np.sum(feature_vec) == 6).sum() == 0
             # distance
             pos_ii = conf.GetAtomPosition(ii)
             pos_jj = conf.GetAtomPosition(jj)
@@ -172,7 +168,7 @@ def mol_to_tensor(mol, training=True):
 def update_virtual_bond_feature(smi_graph, row, col, bond_idx):
     bond_start = ATOM_TYPE_SIZE + CHARGE_TYPE_SIZE + CHIR_TYPE_SIZE
     bond_channel_feature = get_bond_channel_feature(bond_idx=bond_idx, stereo_idx=0,
-                                                    ring_indices=[0], isconj_idx=0)
+                                                    ring_indices=[0])
     atom_channel_feature_ii = smi_graph[row, row, :bond_start]
     atom_channel_feature_jj = smi_graph[col, col, :bond_start]
     atom_channel_feature = atom_channel_feature_ii + atom_channel_feature_jj
@@ -192,7 +188,6 @@ def connect_3rd_neighbour(mol, smi_graph):
     3rd neighbours: atoms connected to 2nd neighbours but are neither direct nor 2nd neighbours
     '''
     mol_len = len(mol.GetAtoms())
-    breakpoint()
     connect_map = smi_graph[..., :-1].sum(-1)
     np.fill_diagonal(connect_map, 0)
     third_neighbours = []
@@ -237,8 +232,8 @@ def connect_3rd_neighbour(mol, smi_graph):
             third_neighbours.append(connect_atom_idx_3rd)
             break
 
-    mask_diag = np.ones((mol_len, mol_len))
-    np.fill_diagonal(mask_diag, 0)
-    mask_diag = np.expand_dims(mask_diag, axis=-1)
-    smi_graph *= mask_diag
+    # mask_diag = np.ones((mol_len, mol_len))
+    # np.fill_diagonal(mask_diag, 0)
+    # mask_diag = np.expand_dims(mask_diag, axis=-1)
+    # smi_graph *= mask_diag
     return smi_graph
