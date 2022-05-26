@@ -91,7 +91,7 @@ def verify_mol(mol):
     try:
         mol = xyz2mol(**data)
     except Exception as e:
-        print('Mol did not pass validation')
+        print(e)
         return False
 
     return True
@@ -154,7 +154,7 @@ def mol_to_tensor(mol, training=True):
                 feature_vec = np.hstack((atom_channel_feature, bond_channel_feature))
                 smi_graph[idx, idy, :] = feature_vec
                 smi_graph[idy, idx, :] = feature_vec
-                assert feature_vec.sum() == 9
+                assert feature_vec.sum() >= 9, 'Wrong bond feature creation'
             # distance
             pos_ii = conf.GetAtomPosition(ii)
             pos_jj = conf.GetAtomPosition(jj)

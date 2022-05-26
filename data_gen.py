@@ -57,8 +57,8 @@ def get_and_save_data_batch(smiles_path, dest_data_path, batch_num=100000):
             continue
         for _, mol_row in conf_df.iloc[:NUM_CONFS_PER_MOL, :].iterrows():
             mol = mol_row.rd_mol
-            if not verify_mol(mol):
-                continue
+            # if not verify_mol(mol):
+            #     continue
 
             try:
                 g, d = mol_to_tensor(mol)
@@ -70,6 +70,7 @@ def get_and_save_data_batch(smiles_path, dest_data_path, batch_num=100000):
                     rs.push(_d)
             except Exception as e:
                 print(e)
+                breakpoint()
                 continue
 
             G.append(g)
