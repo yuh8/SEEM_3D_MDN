@@ -104,12 +104,12 @@ def get_optimizer():
 
 
 def data_iterator(data_path):
-    num_files = len(glob.glob(data_path + 'GR_*.pkl'))
+    num_files = len(glob.glob(data_path + 'GD_*.pkl'))
     batch_nums = np.arange(num_files)
     while True:
         np.random.shuffle(batch_nums)
         for batch in batch_nums:
-            f_name = data_path + 'GR_{}.pkl'.format(batch)
+            f_name = data_path + 'GD_{}.pkl'.format(batch)
             with open(f_name, 'rb') as handle:
                 GR = pickle.load(handle)
 
@@ -121,10 +121,10 @@ def data_iterator(data_path):
 
 
 def data_iterator_test(data_path):
-    num_files = len(glob.glob(data_path + 'GR_*.pkl'))
+    num_files = len(glob.glob(data_path + 'GD_*.pkl'))
     batch_nums = np.arange(num_files)
     for batch in batch_nums:
-        f_name = data_path + 'GR_{}.pkl'.format(batch)
+        f_name = data_path + 'GD_{}.pkl'.format(batch)
         with open(f_name, 'rb') as handle:
             GR = pickle.load(handle)
 
@@ -142,8 +142,8 @@ if __name__ == "__main__":
     val_path = 'D:/seem_3d_data/test_data/val_batch/'
     test_path = 'D:/seem_3d_data/test_data/test_batch/'
 
-    train_steps = len(glob.glob(train_path + 'GR_*.pkl'))
-    val_steps = len(glob.glob(val_path + 'GR_*.pkl'))
+    train_steps = len(glob.glob(train_path + 'GD_*.pkl'))
+    val_steps = len(glob.glob(val_path + 'GD_*.pkl'))
 
     callbacks = [tf.keras.callbacks.ModelCheckpoint(ckpt_path,
                                                     save_freq=1000,

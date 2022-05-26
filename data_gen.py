@@ -5,6 +5,7 @@ import pandas as pd
 import sparse as sp
 from sklearn.model_selection import train_test_split
 from src.data_process_utils import mol_to_tensor, connect_3rd_neighbour, verify_mol
+from src.running_stats import RunningStats
 from src.misc_utils import create_folder, pickle_save, pickle_load
 from src.CONSTS import BATCH_SIZE, NUM_CONFS_PER_MOL
 
@@ -32,13 +33,14 @@ def get_train_val_test_smiles():
 
 
 def get_and_save_data_batch(smiles_path, dest_data_path, batch_num=100000):
+    rs = RunningStats()
     drugs_file = "D:/seem_3d_data/data/rdkit_folder/summary_drugs.json"
     with open(drugs_file, "r") as f:
         drugs_summ = json.load(f)
 
     smiles = pickle_load(smiles_path)
     G = []
-    R = []
+    D = []
     batch = 0
     for sim in smiles:
         try:
@@ -59,22 +61,33 @@ def get_and_save_data_batch(smiles_path, dest_data_path, batch_num=100000):
                 continue
 
             try:
-                g_d, r = mol_to_tensor(mol)
-                g_d = connect_3rd_neighbour(mol, g_d)
+                g, d = mol_to_tensor(mol)
+                g = connect_3rd_neighbour(mol, g)
+                # cacluate mean and std online for distance
+                con_map = g.sum(-1)
+                con_d = d[con_map > 3]
+                for _d in con_d:
+                    rs.push(_d)
+                breakpoint()
             except Exception as e:
                 print(e)
                 continue
 
-            G.append(g_d)
-            R.append(r)
+            G.append(g)
+            D.append(d)
             if len(G) > BATCH_SIZE:
                 _X = sp.COO(np.stack(G[:BATCH_SIZE]))
-                _y = sp.COO(np.stack(R[:BATCH_SIZE]))
+                _y = sp.COO(np.stack(D[:BATCH_SIZE]))
                 _data = (_X, _y)
-                with open(dest_data_path + 'GR_{}.pkl'.format(batch), 'wb') as f:
+                with open(dest_data_path + 'GD_{}.pkl'.format(batch), 'wb') as f:
                     pickle.dump(_data, f)
+
+                mean = rs.mean()
+                stdev = rs.standard_deviation()
+                with open(dest_data_path + 'stats.pkl', 'wb') as f:
+                    pickle.dump(np.array([mean, stdev]), f)
                 G = G[BATCH_SIZE:]
-                R = R[BATCH_SIZE:]
+                D = D[BATCH_SIZE:]
                 batch += 1
                 if batch >= batch_num:
                     break
@@ -84,10 +97,15 @@ def get_and_save_data_batch(smiles_path, dest_data_path, batch_num=100000):
             break
     if G:
         _X = sp.COO(np.stack(G))
-        _y = sp.COO(np.vstack(R))
+        _y = sp.COO(np.vstack(D))
         _data = (_X, _y)
-        with open(dest_data_path + 'GR_{}.pkl'.format(batch), 'wb') as f:
+        with open(dest_data_path + 'GD_{}.pkl'.format(batch), 'wb') as f:
             pickle.dump(_data, f)
+
+        mean = rs.mean()
+        stdev = rs.standard_deviation()
+        with open(dest_data_path + 'stats.pkl', 'wb') as f:
+            pickle.dump(np.array([mean, stdev]), f)
 
 
 if __name__ == "__main__":

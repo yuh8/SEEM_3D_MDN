@@ -59,7 +59,7 @@ def get_bond_channel_feature(bond_idx=None,
     bond_type_channel = np.zeros(BOND_TYPE_SIZE)
     bond_stereo_channel = np.zeros(BOND_STEREOTYPE_SIZE)
     bond_ring_channel = np.zeros(BOND_RINGTYPE_SIZE)
-    if not bond_idx is None:
+    if bond_idx is not None:
         bond_type_channel[bond_idx] = 1
         bond_stereo_channel[stereo_idx] = 1
 
@@ -99,7 +99,7 @@ def verify_mol(mol):
 
 def mol_to_tensor(mol, training=True):
     smi_graph = np.zeros((MAX_NUM_ATOMS, MAX_NUM_ATOMS, FEATURE_DEPTH))
-    coords = np.zeros((MAX_NUM_ATOMS, MAX_NUM_ATOMS))
+    d = np.zeros((MAX_NUM_ATOMS, MAX_NUM_ATOMS))
     atom_indices = []
     elements = []
     charges = []
@@ -119,10 +119,9 @@ def mol_to_tensor(mol, training=True):
     for idx, ii in enumerate(atom_indices):
         for idy, jj in enumerate(atom_indices):
             if idx == idy:
-                bond_channel_feature = get_bond_channel_feature()
                 atom_channel_feature = get_atom_channel_feature(elements[ii], charges[ii], chirs[ii])
-                feature_vec = np.hstack((atom_channel_feature, bond_channel_feature))
-                smi_graph[idx, idy, :] = feature_vec
+                atom_channel_len = len(atom_channel_feature)
+                smi_graph[idx, idy, :atom_channel_len] = atom_channel_feature
 
             if idx > idy:
                 continue
@@ -155,17 +154,21 @@ def mol_to_tensor(mol, training=True):
                 feature_vec = np.hstack((atom_channel_feature, bond_channel_feature))
                 smi_graph[idx, idy, :] = feature_vec
                 smi_graph[idy, idx, :] = feature_vec
-                assert (np.sum(feature_vec) == 6).sum() == 0
+                assert feature_vec.sum() == 9
             # distance
             pos_ii = conf.GetAtomPosition(ii)
             pos_jj = conf.GetAtomPosition(jj)
             dist = np.linalg.norm(pos_ii - pos_jj)
-            coords[idx, idy] = dist
-
-    return smi_graph, coords
+            d[idx, idy] = dist
+            d[idy, idx] = dist
+    return smi_graph, d
 
 
 def update_virtual_bond_feature(smi_graph, row, col, bond_idx):
+    _feature_vec = smi_graph[row, col, :]
+    if _feature_vec.sum() == 9:  # if a bond already exists
+        return smi_graph
+
     bond_start = ATOM_TYPE_SIZE + CHARGE_TYPE_SIZE + CHIR_TYPE_SIZE
     bond_channel_feature = get_bond_channel_feature(bond_idx=bond_idx, stereo_idx=0,
                                                     ring_indices=[0])
@@ -174,8 +177,8 @@ def update_virtual_bond_feature(smi_graph, row, col, bond_idx):
     atom_channel_feature = atom_channel_feature_ii + atom_channel_feature_jj
 
     feature_vec = np.hstack((atom_channel_feature, bond_channel_feature))
-    smi_graph[row, col] = feature_vec
-    smi_graph[col, row] = feature_vec
+    smi_graph[row, col, :] = feature_vec
+    smi_graph[col, row, :] = feature_vec
     return smi_graph
 
 
@@ -188,7 +191,7 @@ def connect_3rd_neighbour(mol, smi_graph):
     3rd neighbours: atoms connected to 2nd neighbours but are neither direct nor 2nd neighbours
     '''
     mol_len = len(mol.GetAtoms())
-    connect_map = smi_graph[..., :-1].sum(-1)
+    connect_map = smi_graph.sum(-1)
     np.fill_diagonal(connect_map, 0)
     third_neighbours = []
     for ii in range(mol_len):
@@ -208,9 +211,7 @@ def connect_3rd_neighbour(mol, smi_graph):
         if connect_atom_idx_2nds.shape[0] == 0:
             continue
 
-        connect_atom_idx_2nds = np.unique(connect_atom_idx_2nds)
-        connect_atom_idx_2nds = connect_atom_idx_2nds.astype(int)
-
+        connect_atom_idx_2nds = np.unique(connect_atom_idx_2nds).astype(int)
         for idx_2nd in connect_atom_idx_2nds:
             smi_graph = update_virtual_bond_feature(smi_graph, ii, idx_2nd, -2)
 
@@ -227,9 +228,9 @@ def connect_3rd_neighbour(mol, smi_graph):
             if connect_atom_idx_3rds.shape[0] == 0:
                 continue
             random.shuffle(connect_atom_idx_3rds)
-            connect_atom_idx_3rd = connect_atom_idx_3rds[0]
-            smi_graph = update_virtual_bond_feature(smi_graph, ii, connect_atom_idx_3rd, -1)
-            third_neighbours.append(connect_atom_idx_3rd)
+            idx_3rd = connect_atom_idx_3rds[0]
+            smi_graph = update_virtual_bond_feature(smi_graph, ii, idx_3rd, -1)
+            third_neighbours.append(idx_3rd)
             break
 
     # mask_diag = np.ones((mol_len, mol_len))
