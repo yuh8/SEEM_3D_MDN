@@ -91,7 +91,7 @@ def verify_mol(mol):
     try:
         mol = xyz2mol(**data)
     except Exception as e:
-        print(e)
+        print('Mol did not pass validation')
         return False
 
     return True

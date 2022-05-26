@@ -68,7 +68,6 @@ def get_and_save_data_batch(smiles_path, dest_data_path, batch_num=100000):
                 con_d = d[con_map > 3]
                 for _d in con_d:
                     rs.push(_d)
-                breakpoint()
             except Exception as e:
                 print(e)
                 continue
