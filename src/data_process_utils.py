@@ -166,7 +166,7 @@ def mol_to_tensor(mol, training=True):
 
 def update_virtual_bond_feature(smi_graph, row, col, bond_idx):
     _feature_vec = smi_graph[row, col, :]
-    if _feature_vec.sum() == 9:  # if a bond already exists
+    if _feature_vec.sum() >= 9:  # if a bond already exists
         return smi_graph
 
     bond_start = ATOM_TYPE_SIZE + CHARGE_TYPE_SIZE + CHIR_TYPE_SIZE
