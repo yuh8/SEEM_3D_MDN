@@ -97,7 +97,7 @@ def get_and_save_data_batch(smiles_path, dest_data_path, batch_num=100000):
             break
     if G:
         _X = sp.COO(np.stack(G))
-        _y = sp.COO(np.vstack(D))
+        _y = sp.COO(np.stack(D))
         _data = (_X, _y)
         with open(dest_data_path + 'GD_{}.pkl'.format(batch), 'wb') as f:
             pickle.dump(_data, f)

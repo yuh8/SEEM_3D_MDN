@@ -31,7 +31,7 @@ def core_model():
     mini unet
     '''
     # [BATCH, MAX_NUM_ATOMS, MAX_NUM_ATOMS, FEATURE_DEPTH]
-    inputs = layers.Input(shape=(MAX_NUM_ATOMS, MAX_NUM_ATOMS, FEATURE_DEPTH - 1))
+    inputs = layers.Input(shape=(MAX_NUM_ATOMS, MAX_NUM_ATOMS, FEATURE_DEPTH))
     s1, p1 = encoder_block(inputs, 32)
     s2, p2 = encoder_block(p1, 64)
     s3, p3 = encoder_block(p2, 128)
@@ -51,7 +51,7 @@ def core_model():
 
 def loss_func(y_true, y_pred):
     # compute only for upper triangle
-    y_true = tf.linalg.band_part(y_true, 0, -1)
+    # y_true = tf.linalg.band_part(y_true, 0, -1)
     comp_weight, mean, log_std = tf.split(y_pred, 3, axis=-1)
     comp_weight = tf.nn.softmax(comp_weight, axis=-1)
     dist = tfd.Normal(loc=mean, scale=tf.math.exp(log_std))
@@ -68,7 +68,7 @@ def loss_func(y_true, y_pred):
 
 def distance_rmse(y_true, y_pred):
     # compute only for upper triangle
-    y_true = tf.linalg.band_part(y_true, 0, -1)
+    # y_true = tf.linalg.band_part(y_true, 0, -1)
     comp_weight, mean, _ = tf.split(y_pred, 3, axis=-1)
     comp_weight = tf.nn.softmax(comp_weight, axis=-1)
     se = (mean - y_true)**2
@@ -111,13 +111,14 @@ def data_iterator(data_path):
         for batch in batch_nums:
             f_name = data_path + 'GD_{}.pkl'.format(batch)
             with open(f_name, 'rb') as handle:
-                GR = pickle.load(handle)
+                GD = pickle.load(handle)
 
-            G = GR[0].todense()
-            # R = GR[1].todense()
+            G = GD[0].todense()
+            mask = G.sum(-1) > 3
+            D = GD[1].todense() * mask
             sample_nums = np.arange(G.shape[0])
             np.random.shuffle(sample_nums)
-            yield G[sample_nums, ..., :-1], np.expand_dims(G[sample_nums, ..., -1], axis=-1)
+            yield G[sample_nums, ...], np.expand_dims(D[sample_nums, ...], axis=-1)
 
 
 def data_iterator_test(data_path):
@@ -126,11 +127,12 @@ def data_iterator_test(data_path):
     for batch in batch_nums:
         f_name = data_path + 'GD_{}.pkl'.format(batch)
         with open(f_name, 'rb') as handle:
-            GR = pickle.load(handle)
+            GD = pickle.load(handle)
 
-        G = GR[0].todense()
-        # R = GR[1].todense()
-        yield G[..., :-1], np.expand_dims(G[..., -1], axis=-1)
+        G = GD[0].todense()
+        mask = G.sum(-1) > 3
+        D = GD[1].todense() * mask
+        yield G, np.expand_dims(D, axis=-1)
 
 
 if __name__ == "__main__":
