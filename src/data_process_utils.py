@@ -233,8 +233,4 @@ def connect_3rd_neighbour(mol, smi_graph):
             third_neighbours.append(idx_3rd)
             break
 
-    # mask_diag = np.ones((mol_len, mol_len))
-    # np.fill_diagonal(mask_diag, 0)
-    # mask_diag = np.expand_dims(mask_diag, axis=-1)
-    # smi_graph *= mask_diag
     return smi_graph

@@ -60,7 +60,7 @@ def loss_func(y_true, y_pred):
     # [BATCH, MAX_NUM_ATOMS, MAX_NUM_ATOMS]
     _loss = tf.reduce_sum(_loss, axis=-1)
     _loss = tf.math.log(_loss + TF_EPS)
-    mask = tf.squeeze(tf.cast(y_true > 0, tf.float32))
+    mask = tf.squeeze(tf.cast(y_true != 0, tf.float32))
     _loss *= mask
     loss = -tf.reduce_sum(_loss, axis=[1, 2])
     return loss
@@ -74,7 +74,7 @@ def distance_rmse(y_true, y_pred):
     se = (mean - y_true)**2
     se *= comp_weight
     se = tf.reduce_sum(se, axis=-1)
-    mask = tf.squeeze(tf.cast(y_true > 0, tf.float32))
+    mask = tf.squeeze(tf.cast(y_true != 0, tf.float32))
     se *= mask
     loss = tf.reduce_sum(se, axis=[1, 2]) / tf.reduce_sum(mask, axis=[1, 2])
     loss = tf.math.sqrt(loss)
@@ -114,8 +114,12 @@ def data_iterator(data_path):
                 GD = pickle.load(handle)
 
             G = GD[0].todense()
+            D = GD[1].todense()
+            D -= d_mean
+            D /= d_std
             mask = G.sum(-1) > 3
-            D = GD[1].todense() * mask
+            D *= mask
+
             sample_nums = np.arange(G.shape[0])
             np.random.shuffle(sample_nums)
             yield G[sample_nums, ...], np.expand_dims(D[sample_nums, ...], axis=-1)
@@ -130,8 +134,11 @@ def data_iterator_test(data_path):
             GD = pickle.load(handle)
 
         G = GD[0].todense()
+        D = GD[1].todense()
+        D -= d_mean
+        D /= d_std
         mask = G.sum(-1) > 3
-        D = GD[1].todense() * mask
+        D *= mask
         yield G, np.expand_dims(D, axis=-1)
 
 
@@ -143,6 +150,10 @@ if __name__ == "__main__":
     train_path = 'D:/seem_3d_data/train_data/train_batch/'
     val_path = 'D:/seem_3d_data/test_data/val_batch/'
     test_path = 'D:/seem_3d_data/test_data/test_batch/'
+
+    f_name = train_path + 'stats.pkl'
+    with open(f_name, 'rb') as handle:
+        d_mean, d_std = pickle.load(handle)
 
     train_steps = len(glob.glob(train_path + 'GD_*.pkl'))
     val_steps = len(glob.glob(val_path + 'GD_*.pkl'))
