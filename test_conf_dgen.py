@@ -66,23 +66,25 @@ def get_test_mol(smiles_path):
         for _, mol_row in conf_df.iloc[:1, :].iterrows():
             mol_origin = deepcopy(mol_row.rd_mol)
             mol_pred = deepcopy(mol_row.rd_mol)
-            G, _ = mol_to_tensor(mol_pred, training=False)
-            G = connect_3rd_neighbour(mol_pred, G)
-            mask = G[..., :-1].sum(-1) > 2
-            G_in = G[..., :-1]
-            G_in = np.expand_dims(G_in, axis=0)
+            g, d = mol_to_tensor(mol_origin, training=False)
+            g = connect_3rd_neighbour(mol_origin, g)
+            g = np.expand_dims(g, axis=0)
+            mask = g.sum(-1) > 3
+            d = np.expand_dims(d, axis=0)
+            d -= d_mean
+            d /= d_std
             # d = np.expand_dims(d, axis=-1)
-            d_pred = model(G_in, training=False).numpy()[0]
-            d_pred_mean = d_pred[..., 1] * mask
-            d_pred_std = np.exp(d_pred[..., 2]) * mask
+            d_pred = model(g, training=False).numpy()[0]
+            d_pred_mean = np.squeeze(d_pred[..., 1] * mask)
+            d_pred_std = np.squeeze(np.exp(d_pred[..., 2]) * mask)
 
             mol_pred.RemoveAllConformers()
-            embed_conformer(mol_pred, d_pred_mean, d_pred_std, seed=43)
+            embed_conformer(mol_pred, d_pred_mean, d_pred_std,
+                            d_mean, d_std, np.squeeze(mask), seed=43)
             conf = mol_pred.GetConformers()[0]
             pos = conf.GetPositions()
             plot_3d_scatter(pos)
-            breakpoint()
-            # align_conformers(mol_pred)
+            align_conformers(mol_pred)
             plot = MolsToGridImage([mol_pred])
             plot.show()
             breakpoint()
@@ -91,15 +93,20 @@ def get_test_mol(smiles_path):
             if len(mols_pred) % 10 == 0:
                 pickle_save(mols_pred, 'generated_confs.pkl')
                 pickle_save(mols_origin, 'gt_confs.pkl')
-                breakpoint()
 
 
 if __name__ == "__main__":
     freeze_support()
+    train_path = 'D:/seem_3d_data/train_data/train_batch/'
+    test_path = 'D:/seem_3d_data/test_data/test_batch/'
+
     create_folder('gen_samples/')
     model = load_json_model("conf_model_d_K_1/conf_model_d.json")
     model.compile(optimizer='adam',
                   loss=loss_func)
     model.load_weights("./checkpoints/generator_d_K_1/")
+    f_name = train_path + 'stats.pkl'
+    with open(f_name, 'rb') as handle:
+        d_mean, d_std = pickle.load(handle)
 
-    get_test_mol('D:/seem_3d_data/test_data/test_batch/smiles.pkl')
+    get_test_mol(test_path + 'smiles.pkl')

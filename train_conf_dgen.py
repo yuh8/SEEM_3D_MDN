@@ -97,8 +97,14 @@ class CustomSchedule(tf.keras.optimizers.schedules.LearningRateSchedule):
         return tf.math.rsqrt(self.d_model) * tf.math.minimum(arg1, arg2)
 
 
-def get_optimizer():
-    lr_fn = 0.0001
+def get_optimizer(finetune=False):
+    lr = 0.001
+    if finetune:
+        lr = 0.00001
+    lr_fn = tf.keras.optimizers.schedules.PiecewiseConstantDecay(
+        [180000, 360000], [lr, lr / 10, lr / 50],
+        name=None
+    )
     opt_op = tf.keras.optimizers.Adam(learning_rate=lr_fn)
     return opt_op
 
@@ -176,7 +182,7 @@ if __name__ == "__main__":
     model.summary()
 
     model.fit(data_iterator(train_path),
-              epochs=20,
+              epochs=30,
               validation_data=data_iterator(val_path),
               validation_steps=val_steps,
               callbacks=callbacks,

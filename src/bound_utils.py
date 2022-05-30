@@ -7,24 +7,23 @@ MAX_DISTANCE = 1E3
 MIN_DISTANCE = 1E-3
 
 
-def get_init_bounds_matrix(mol):
-    num_atoms = mol.GetNumAtoms()
-    bounds_matrix = np.zeros(shape=(num_atoms, num_atoms), dtype=np.float)
+def get_max_min_bound(bounds_matrix):
+    num_atoms = bounds_matrix.shape[0]
 
     # Initial matrix
     for i in range(num_atoms):
         for j in range(i + 1, num_atoms):
-            bounds_matrix[i, j] = MAX_DISTANCE
-            bounds_matrix[j, i] = MIN_DISTANCE
+            if bounds_matrix[i, j] == 0:
+                bounds_matrix[i, j] = MAX_DISTANCE
+            if bounds_matrix[j, i] <= 0:
+                bounds_matrix[j, i] = MIN_DISTANCE
 
     return bounds_matrix
 
 
 def embed_bounds_matrix(mol, bounds_matrix, seed):
     DistanceGeometry.DoTriangleSmoothing(bounds_matrix)
-
     ps = rdDistGeom.EmbedParameters()
-    ps.maxAttempts = 100
     ps.numThreads = 0  # max number of threads supported by the system will be used
     ps.useRandomCoords = True  # recommended for larger molecules
     ps.clearConfs = False
@@ -34,20 +33,23 @@ def embed_bounds_matrix(mol, bounds_matrix, seed):
     return rdDistGeom.EmbedMolecule(mol, ps)
 
 
-def embed_conformer(mol, means, stds, seed):
-    bounds_matrix = get_init_bounds_matrix(mol)
-    breakpoint()
+def embed_conformer(mol, means, stds, d_mean, d_std, mask, seed):
     num_atoms = len([atom.GetSymbol() for atom in mol.GetAtoms()])
     bound_upper = np.triu(means, 1) + np.triu(stds, 1)
-    breakpoint()
+    bound_upper *= d_std * np.triu(mask)
+    bound_upper += d_mean * np.triu(mask)
+    bound_upper = bound_upper[:num_atoms, :num_atoms]
+
     bound_lower = np.triu(means, 1) - np.triu(stds, 1)
-    bounds_matrix = np.triu(bound_upper, 1) + np.triu(bound_lower, 1).T
-    bounds_matrix = bounds_matrix[:num_atoms, :num_atoms]
-    bounds_matrix[bounds_matrix < 0] = MIN_DISTANCE
-    bounds_matrix[bounds_matrix == 0] = MIN_DISTANCE
-    bounds_matrix = bounds_matrix.astype(dtype=np.float)
-    print(embed_bounds_matrix(mol, bounds_matrix, seed))
-    breakpoint()
+    bound_lower *= d_std * np.triu(mask)
+    bound_lower += d_mean * np.triu(mask)
+    bound_lower = bound_lower[:num_atoms, :num_atoms].T
+    bounds_matrix = bound_lower + bound_upper
+
+    bounds_matrix = get_max_min_bound(bounds_matrix)
+    np.fill_diagonal(bounds_matrix, 0)
+    bounds_matrix = bounds_matrix.astype(np.double)
+
     return embed_bounds_matrix(mol, bounds_matrix, seed)
 
 
