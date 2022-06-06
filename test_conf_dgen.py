@@ -9,7 +9,7 @@ from copy import deepcopy
 from multiprocessing import freeze_support
 from rdkit.Chem.Draw import MolsToGridImage
 from src.data_process_utils import connect_3rd_neighbour, mol_to_tensor
-from src.bound_utils import embed_conformer, align_conformers
+from src.bound_utils import embed_conformer, align_conformers, embed_conformer_gt
 from src.misc_utils import load_json_model, create_folder, pickle_load, pickle_save
 from src.CONSTS import TF_EPS, NUM_CONFS_PER_MOL
 
@@ -70,27 +70,27 @@ def get_test_mol(smiles_path):
             g = connect_3rd_neighbour(mol_origin, g)
             g = np.expand_dims(g, axis=0)
             mask = g.sum(-1) > 3
-            d = np.expand_dims(d, axis=0)
             d -= d_mean
             d /= d_std
+            # d *= np.squeeze(mask)
             # d = np.expand_dims(d, axis=-1)
             d_pred = model(g, training=False).numpy()[0]
             d_pred_mean = np.squeeze(d_pred[..., 1] * mask)
-            d_pred_std = np.squeeze(np.exp(d_pred[..., 2]) * mask)
+            d_pred_std = np.squeeze(np.exp(d_pred[..., 2]) * mask) * d_std
 
             mol_pred.RemoveAllConformers()
-            embed_conformer(mol_pred, d_pred_mean, d_pred_std,
-                            d_mean, d_std, np.squeeze(mask), seed=43)
+            embed_conformer_gt(mol_pred, d,
+                               d_mean, d_std, np.squeeze(mask), seed=43)
             conf = mol_pred.GetConformers()[0]
             pos = conf.GetPositions()
-            plot_3d_scatter(pos)
-            align_conformers(mol_pred)
-            plot = MolsToGridImage([mol_pred])
-            plot.show()
-            breakpoint()
+            # align_conformers(mol_pred)
+            # plot = MolsToGridImage([mol_pred])
+            # plot.show()
+            # breakpoint()
             mols_pred.append(mol_pred)
             mols_origin.append(mol_origin)
-            if len(mols_pred) % 10 == 0:
+            if len(mols_pred) % 2 == 0:
+                breakpoint()
                 pickle_save(mols_pred, 'generated_confs.pkl')
                 pickle_save(mols_origin, 'gt_confs.pkl')
 

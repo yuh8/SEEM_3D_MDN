@@ -1,6 +1,6 @@
 import os
-import json
 import math
+import json
 import pickle
 import tensorflow as tf
 from .CONSTS import TF_EPS
@@ -50,3 +50,38 @@ def norm_pdf(x, mu, log_var):
     z = (2 * math.pi * var)**0.5 + TF_EPS
     pdf = tf.math.exp(-0.5 * (x - mu)**2 / var) / z
     return pdf
+
+
+class RunningStats:
+
+    def __init__(self):
+        self.n = 0
+        self.old_m = 0
+        self.new_m = 0
+        self.old_s = 0
+        self.new_s = 0
+
+    def clear(self):
+        self.n = 0
+
+    def push(self, x):
+        self.n += 1
+
+        if self.n == 1:
+            self.old_m = self.new_m = x
+            self.old_s = 0
+        else:
+            self.new_m = self.old_m + (x - self.old_m) / self.n
+            self.new_s = self.old_s + (x - self.old_m) * (x - self.new_m)
+
+            self.old_m = self.new_m
+            self.old_s = self.new_s
+
+    def mean(self):
+        return self.new_m if self.n else 0.0
+
+    def variance(self):
+        return self.new_s / (self.n - 1) if self.n > 1 else 0.0
+
+    def standard_deviation(self):
+        return math.sqrt(self.variance())

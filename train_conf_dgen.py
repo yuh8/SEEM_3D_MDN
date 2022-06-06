@@ -32,17 +32,17 @@ def core_model():
     '''
     # [BATCH, MAX_NUM_ATOMS, MAX_NUM_ATOMS, FEATURE_DEPTH]
     inputs = layers.Input(shape=(MAX_NUM_ATOMS, MAX_NUM_ATOMS, FEATURE_DEPTH))
-    s1, p1 = encoder_block(inputs, 32)
-    s2, p2 = encoder_block(p1, 64)
-    s3, p3 = encoder_block(p2, 128)
-    s4, p4 = encoder_block(p3, 128)
+    s1, p1 = encoder_block(inputs, 64)
+    s2, p2 = encoder_block(p1, 128)
+    s3, p3 = encoder_block(p2, 256)
+    s4, p4 = encoder_block(p3, 256)
 
-    b1 = conv2d_block(p4, 256)
+    b1 = conv2d_block(p4, 512)
 
-    d1 = decoder_block(b1, s4, 128)
-    d2 = decoder_block(d1, s3, 128)
-    d3 = decoder_block(d2, s2, 64)
-    d4 = decoder_block(d3, s1, 32)
+    d1 = decoder_block(b1, s4, 256)
+    d2 = decoder_block(d1, s3, 256)
+    d3 = decoder_block(d2, s2, 128)
+    d4 = decoder_block(d3, s1, 64)
 
     # Add a per-pixel classification layer
     logits = layers.Conv2D(OUTPUT_DEPTH, 3, activation=None, padding="same", use_bias=False)(d4)
@@ -110,12 +110,12 @@ def get_optimizer(finetune=False):
 
 
 def data_iterator(data_path):
-    num_files = len(glob.glob(data_path + 'GD_*.pkl'))
+    num_files = len(glob.glob(data_path + 'GDR_*.pkl'))
     batch_nums = np.arange(num_files)
     while True:
         np.random.shuffle(batch_nums)
         for batch in batch_nums:
-            f_name = data_path + 'GD_{}.pkl'.format(batch)
+            f_name = data_path + 'GDR_{}.pkl'.format(batch)
             with open(f_name, 'rb') as handle:
                 GD = pickle.load(handle)
 
@@ -132,10 +132,10 @@ def data_iterator(data_path):
 
 
 def data_iterator_test(data_path):
-    num_files = len(glob.glob(data_path + 'GD_*.pkl'))
+    num_files = len(glob.glob(data_path + 'GDR_*.pkl'))
     batch_nums = np.arange(num_files)
     for batch in batch_nums:
-        f_name = data_path + 'GD_{}.pkl'.format(batch)
+        f_name = data_path + 'GDR_{}.pkl'.format(batch)
         with open(f_name, 'rb') as handle:
             GD = pickle.load(handle)
 
@@ -161,8 +161,8 @@ if __name__ == "__main__":
     with open(f_name, 'rb') as handle:
         d_mean, d_std = pickle.load(handle)
 
-    train_steps = len(glob.glob(train_path + 'GD_*.pkl'))
-    val_steps = len(glob.glob(val_path + 'GD_*.pkl'))
+    train_steps = len(glob.glob(train_path + 'GDR_*.pkl'))
+    val_steps = len(glob.glob(val_path + 'GDR_*.pkl'))
 
     callbacks = [tf.keras.callbacks.ModelCheckpoint(ckpt_path,
                                                     save_freq=1000,

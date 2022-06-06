@@ -27,6 +27,8 @@ def conv2d_block(input, num_filters, kernel_size=3, padding='SAME'):
 
 def encoder_block(X, num_filters):
     X = conv2d_block(X, num_filters)
+    X = conv2d_block(X, num_filters // 2)
+    X = conv2d_block(X, num_filters)
     p = tf.keras.layers.MaxPool2D(2, 2)(X)
     return X, p
 

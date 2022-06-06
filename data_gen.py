@@ -4,9 +4,8 @@ import numpy as np
 import pandas as pd
 import sparse as sp
 from sklearn.model_selection import train_test_split
-from src.data_process_utils import mol_to_tensor, connect_3rd_neighbour, verify_mol
-from src.running_stats import RunningStats
-from src.misc_utils import create_folder, pickle_save, pickle_load
+from src.data_process_utils import mol_to_tensor
+from src.misc_utils import create_folder, pickle_save, pickle_load, RunningStats
 from src.CONSTS import BATCH_SIZE, NUM_CONFS_PER_MOL
 
 
@@ -41,6 +40,7 @@ def get_and_save_data_batch(smiles_path, dest_data_path, batch_num=100000):
     smiles = pickle_load(smiles_path)
     G = []
     D = []
+    R = []
     batch = 0
     for sim in smiles:
         try:
@@ -57,12 +57,9 @@ def get_and_save_data_batch(smiles_path, dest_data_path, batch_num=100000):
             continue
         for _, mol_row in conf_df.iloc[:NUM_CONFS_PER_MOL, :].iterrows():
             mol = mol_row.rd_mol
-            # if not verify_mol(mol):
-            #     continue
 
             try:
-                g, d = mol_to_tensor(mol)
-                g = connect_3rd_neighbour(mol, g)
+                g, d, r = mol_to_tensor(mol)
                 # cacluate mean and std online for distance
                 con_map = g.sum(-1)
                 con_d = d[con_map > 3]
@@ -70,16 +67,17 @@ def get_and_save_data_batch(smiles_path, dest_data_path, batch_num=100000):
                     rs.push(_d)
             except Exception as e:
                 print(e)
-                breakpoint()
                 continue
 
             G.append(g)
             D.append(d)
+            R.append(r)
             if len(G) > BATCH_SIZE:
                 _X = sp.COO(np.stack(G[:BATCH_SIZE]))
                 _y = sp.COO(np.stack(D[:BATCH_SIZE]))
-                _data = (_X, _y)
-                with open(dest_data_path + 'GD_{}.pkl'.format(batch), 'wb') as f:
+                _z = sp.COO(np.stack(R[:BATCH_SIZE]))
+                _data = (_X, _y, _z)
+                with open(dest_data_path + 'GDR_{}.pkl'.format(batch), 'wb') as f:
                     pickle.dump(_data, f)
 
                 mean = rs.mean()
@@ -88,6 +86,7 @@ def get_and_save_data_batch(smiles_path, dest_data_path, batch_num=100000):
                     pickle.dump(np.array([mean, stdev]), f)
                 G = G[BATCH_SIZE:]
                 D = D[BATCH_SIZE:]
+                R = R[BATCH_SIZE:]
                 batch += 1
                 if batch >= batch_num:
                     break
@@ -98,8 +97,9 @@ def get_and_save_data_batch(smiles_path, dest_data_path, batch_num=100000):
     if G:
         _X = sp.COO(np.stack(G))
         _y = sp.COO(np.stack(D))
-        _data = (_X, _y)
-        with open(dest_data_path + 'GD_{}.pkl'.format(batch), 'wb') as f:
+        _z = sp.COO(np.stack(R))
+        _data = (_X, _y, _z)
+        with open(dest_data_path + 'GDR_{}.pkl'.format(batch), 'wb') as f:
             pickle.dump(_data, f)
 
         mean = rs.mean()
