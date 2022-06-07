@@ -118,5 +118,4 @@ def mol_to_tensor(mol):
         d[source_idx, sink_idx] = dist
         d[sink_idx, source_idx] = dist
 
-    breakpoint()
     return smi_graph, d, R

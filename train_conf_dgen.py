@@ -32,20 +32,24 @@ def core_model():
     '''
     # [BATCH, MAX_NUM_ATOMS, MAX_NUM_ATOMS, FEATURE_DEPTH]
     inputs = layers.Input(shape=(MAX_NUM_ATOMS, MAX_NUM_ATOMS, FEATURE_DEPTH))
-    s1, p1 = encoder_block(inputs, 64)
-    s2, p2 = encoder_block(p1, 128)
-    s3, p3 = encoder_block(p2, 256)
-    s4, p4 = encoder_block(p3, 256)
+    s1, p1 = encoder_block(inputs, 64, pool=False)
+    s2, p2 = encoder_block(p1, 64)
+    s3, p3 = encoder_block(p2, 128, pool=False)
+    s4, p4 = encoder_block(p3, 128)
+    s5, p5 = encoder_block(p4, 256, pool=False)
+    s6, p6 = encoder_block(p5, 256)
 
-    b1 = conv2d_block(p4, 512)
+    b1 = conv2d_block(p6, 512)
 
-    d1 = decoder_block(b1, s4, 256)
-    d2 = decoder_block(d1, s3, 256)
-    d3 = decoder_block(d2, s2, 128)
-    d4 = decoder_block(d3, s1, 64)
+    d1 = decoder_block(b1, s6, 256)
+    d2 = decoder_block(d1, s5, 256, unpool=False)
+    d3 = decoder_block(d2, s4, 128)
+    d4 = decoder_block(d3, s3, 128, unpool=False)
+    d5 = decoder_block(d4, s2, 64)
+    d6 = decoder_block(d5, s1, 64, unpool=False)
 
     # Add a per-pixel classification layer
-    logits = layers.Conv2D(OUTPUT_DEPTH, 3, activation=None, padding="same", use_bias=False)(d4)
+    logits = layers.Conv2D(OUTPUT_DEPTH, 3, activation=None, padding="same", use_bias=False)(d6)
     return inputs, logits
 
 
@@ -98,11 +102,11 @@ class CustomSchedule(tf.keras.optimizers.schedules.LearningRateSchedule):
 
 
 def get_optimizer(finetune=False):
-    lr = 0.001
+    lr = 0.0001
     if finetune:
         lr = 0.00001
     lr_fn = tf.keras.optimizers.schedules.PiecewiseConstantDecay(
-        [180000, 360000], [lr, lr / 10, lr / 50],
+        [360000, 720000], [lr, lr / 10, lr / 50],
         name=None
     )
     opt_op = tf.keras.optimizers.Adam(learning_rate=lr_fn)
@@ -180,6 +184,7 @@ if __name__ == "__main__":
 
     save_model_to_json(model, "conf_model_d_K_{}/conf_model_d.json".format(NUM_COMPS))
     model.summary()
+    breakpoint()
 
     model.fit(data_iterator(train_path),
               epochs=30,

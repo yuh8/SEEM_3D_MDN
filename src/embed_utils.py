@@ -25,16 +25,20 @@ def conv2d_block(input, num_filters, kernel_size=3, padding='SAME'):
     return x
 
 
-def encoder_block(X, num_filters):
+def encoder_block(X, num_filters, pool=True):
     X = conv2d_block(X, num_filters)
     X = conv2d_block(X, num_filters // 2)
     X = conv2d_block(X, num_filters)
-    p = tf.keras.layers.MaxPool2D(2, 2)(X)
+    if pool:
+        p = tf.keras.layers.MaxPool2D(2, 2)(X)
+    else:
+        p = X
     return X, p
 
 
-def decoder_block(X, skip_features, num_filters):
-    X = tf.keras.layers.Conv2DTranspose(num_filters, (2, 2), strides=2, padding="same")(X)
+def decoder_block(X, skip_features, num_filters, unpool=True):
+    if unpool:
+        X = tf.keras.layers.Conv2DTranspose(num_filters, (2, 2), strides=2, padding="same")(X)
     X = tf.keras.layers.Concatenate()([X, skip_features])
     X = conv2d_block(X, num_filters)
     return X
