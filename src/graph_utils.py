@@ -1,15 +1,28 @@
 import numpy as np
 from networkx import Graph
 from rdkit.Chem.rdchem import Mol
+from rdkit.Chem.Draw import rdMolDraw2D
 from typing import List
 
 
+def draw_mol_with_idx(mol):
+    d = rdMolDraw2D.MolDraw2DCairo(960, 960)
+    d.drawOptions().addAtomIndices = True
+    d.DrawMolecule(mol)
+    d.FinishDrawing()
+    with open('atom_annotation_1.png', 'wb') as f:
+        f.write(d.GetDrawingText())
+
+
 def mol_to_extended_graph(molecule: Mol, seed: int = 0) -> Graph:
+    mol_len = molecule.GetNumAtoms()
     rng = np.random.default_rng(seed=seed)
-    start = rng.integers(low=0, high=molecule.GetNumAtoms(), size=1).item()
+    start = rng.integers(low=0, high=mol_len, size=1).item()
     bond_graph = build_bond_graph(molecule)
     sequence = get_random_bf_sequence(graph=bond_graph, start=start, rng=rng)
-    mol_len = len(sequence)
+
+    assert mol_len == len(sequence), 'disconnected graph'
+    assert np.max(sequence) == mol_len - 1, 'disconnected graph'
 
     graph = Graph()
     max_neighbor_len = -np.inf
@@ -34,8 +47,11 @@ def build_bond_graph(molecule: Mol) -> Graph:
 def embed_node_in_graph(graph, new_node: int, bond_graph: Graph, max_dist: int, rng: np.random.Generator) -> None:
     graph.add_node(new_node)
     bonded_neighborhood_list = get_neighborhoods(bond_graph, new_node, max_distance=max_dist)
-    num_neighbors = sum([len(l) for l in bonded_neighborhood_list])
-    assert max_dist == num_neighbors, 'missing neighbor'
+    bfs_atoms = np.unique(np.hstack(bonded_neighborhood_list))
+
+    # assure bfs traverse the entire graph
+    assert max_dist == bfs_atoms.shape[0], 'disconnected graph'
+    assert max_dist == np.max(bfs_atoms) + 1, 'disconnected graph'
     neighbor_len = len(bonded_neighborhood_list)
 
     for k in range(1, neighbor_len):

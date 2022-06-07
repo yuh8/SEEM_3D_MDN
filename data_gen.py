@@ -5,6 +5,7 @@ import pandas as pd
 import sparse as sp
 from sklearn.model_selection import train_test_split
 from src.data_process_utils import mol_to_tensor
+from src.graph_utils import draw_mol_with_idx
 from src.misc_utils import create_folder, pickle_save, pickle_load, RunningStats
 from src.CONSTS import BATCH_SIZE, NUM_CONFS_PER_MOL
 
@@ -66,6 +67,7 @@ def get_and_save_data_batch(smiles_path, dest_data_path, batch_num=100000):
                 for _d in con_d:
                     rs.push(_d)
             except Exception as e:
+                draw_mol_with_idx(mol)
                 print(e)
                 continue
 
