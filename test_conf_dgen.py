@@ -8,7 +8,7 @@ import matplotlib.pyplot as plt
 from copy import deepcopy
 from multiprocessing import freeze_support
 from rdkit.Chem.Draw import MolsToGridImage
-from src.data_process_utils import connect_3rd_neighbour, mol_to_tensor
+from src.data_process_utils import mol_to_tensor
 from src.bound_utils import embed_conformer, align_conformers, embed_conformer_gt
 from src.misc_utils import load_json_model, create_folder, pickle_load, pickle_save
 from src.CONSTS import TF_EPS, NUM_CONFS_PER_MOL
@@ -66,8 +66,7 @@ def get_test_mol(smiles_path):
         for _, mol_row in conf_df.iloc[:1, :].iterrows():
             mol_origin = deepcopy(mol_row.rd_mol)
             mol_pred = deepcopy(mol_row.rd_mol)
-            g, d = mol_to_tensor(mol_origin, training=False)
-            g = connect_3rd_neighbour(mol_origin, g)
+            g, d, _ = mol_to_tensor(mol_origin)
             g = np.expand_dims(g, axis=0)
             mask = g.sum(-1) > 3
             d -= d_mean
@@ -77,10 +76,9 @@ def get_test_mol(smiles_path):
             d_pred = model(g, training=False).numpy()[0]
             d_pred_mean = np.squeeze(d_pred[..., 1] * mask)
             d_pred_std = np.squeeze(np.exp(d_pred[..., 2]) * mask) * d_std
-
             mol_pred.RemoveAllConformers()
-            embed_conformer_gt(mol_pred, d,
-                               d_mean, d_std, np.squeeze(mask), seed=43)
+            embed_conformer(mol_pred, d_pred_mean, d_pred_std,
+                            d_mean, d_std, np.squeeze(mask), seed=43)
             conf = mol_pred.GetConformers()[0]
             pos = conf.GetPositions()
             # align_conformers(mol_pred)

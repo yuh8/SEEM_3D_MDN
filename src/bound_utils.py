@@ -22,7 +22,6 @@ def get_max_min_bound(bounds_matrix):
 
 
 def embed_bounds_matrix(mol, bounds_matrix, seed):
-    breakpoint()
     DistanceGeometry.DoTriangleSmoothing(bounds_matrix)
     ps = rdDistGeom.EmbedParameters()
     ps.numThreads = 0  # max number of threads supported by the system will be used

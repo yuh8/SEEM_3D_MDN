@@ -15,11 +15,11 @@ def conv2d_block(input, num_filters, kernel_size=3, padding='SAME'):
     x = tf.keras.layers.Conv2D(num_filters,
                                kernel_size=kernel_size,
                                padding=padding)(input)
-    x = tf.keras.layers.LayerNormalization(epsilon=1e-9)(x)
+    x = tf.keras.layers.BatchNormalization()(x)
     x = tf.keras.layers.Activation("relu")(x)
 
     x = tf.keras.layers.Conv2D(num_filters, 3, padding="same")(x)
-    x = tf.keras.layers.LayerNormalization(epsilon=1e-9)(x)
+    x = tf.keras.layers.BatchNormalization()(x)
     x = tf.keras.layers.Activation("relu")(x)
 
     return x
