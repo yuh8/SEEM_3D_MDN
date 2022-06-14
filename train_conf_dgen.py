@@ -37,11 +37,11 @@ def core_model():
     s3, p3 = encoder_block(p2, 128, pool=False)
     s4, p4 = encoder_block(p3, 128)
     s5, p5 = encoder_block(p4, 256, pool=False)
-    s6, p6 = encoder_block(p5, 256)
+    s6, p6 = encoder_block(p5, 512)
 
-    b1 = conv2d_block(p6, 512)
+    b1 = conv2d_block(p6, 1024)
 
-    d1 = decoder_block(b1, s6, 256)
+    d1 = decoder_block(b1, s6, 512)
     d2 = decoder_block(d1, s5, 256, unpool=False)
     d3 = decoder_block(d2, s4, 128)
     d4 = decoder_block(d3, s3, 128, unpool=False)
@@ -109,7 +109,7 @@ def get_optimizer(finetune=False):
         [1000000, 2000000, 3000000], [lr, lr / 10, lr / 50, lr / 100],
         name=None
     )
-    opt_op = tf.keras.optimizers.Adam(learning_rate=lr_fn)
+    opt_op = tf.keras.optimizers.Adam(learning_rate=lr_fn, global_clipnorm=0.5)
     return opt_op
 
 
@@ -184,6 +184,12 @@ if __name__ == "__main__":
 
     save_model_to_json(model, "conf_model_d_K_{}/conf_model_d.json".format(NUM_COMPS))
     model.summary()
+
+    try:
+        model.load_weights("./checkpoints/generator_d_K_1/")
+    except:
+        print('no exitsing model detected, training starts afresh')
+        pass
 
     model.fit(data_iterator(train_path),
               epochs=40,

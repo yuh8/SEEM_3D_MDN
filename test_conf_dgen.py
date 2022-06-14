@@ -63,7 +63,7 @@ def get_test_mol(smiles_path):
         conf_df.sort_values(by=['boltzmannweight'], ascending=False, inplace=True)
         if conf_df.shape[0] < 1:
             continue
-        for _, mol_row in conf_df.iloc[:1, :].iterrows():
+        for _, mol_row in conf_df.iloc[:3, :].iterrows():
             mol_origin = deepcopy(mol_row.rd_mol)
             mol_pred = deepcopy(mol_row.rd_mol)
             g, d, _ = mol_to_tensor(mol_origin)
