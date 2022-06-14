@@ -49,7 +49,7 @@ def core_model():
     d6 = decoder_block(d5, s1, 64, unpool=False)
 
     # Add a per-pixel classification layer
-    logits = layers.Conv2D(OUTPUT_DEPTH, 3, activation=None, padding="same", use_bias=False)(d6)
+    logits = layers.Conv2D(OUTPUT_DEPTH, 1, activation=None, padding="same", use_bias=False)(d6)
     return inputs, logits
 
 
