@@ -1,1 +1,2 @@
 /checkpoints filter=lfs diff=lfs merge=lfs -text
+/checkpoints_legacy filter=lfs diff=lfs merge=lfs -text
