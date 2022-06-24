@@ -31,18 +31,8 @@ def conv2d_block(input, num_filters, kernel_size=3, padding='SAME'):
         x = tf.keras.layers.Conv2D(num_filters,
                                    kernel_size=kernel_size,
                                    padding=padding)(input)
-    x = tf.keras.layers.LayerNormalization()(x)
+    x = tf.keras.layers.BatchNormalization()(x)
     x = tf.keras.layers.Activation("relu")(x)
-
-    if num_filters >= 256:
-        x = bottleneck(x, num_filters)
-    else:
-        x = tf.keras.layers.Conv2D(num_filters,
-                                   kernel_size=kernel_size,
-                                   padding=padding)(x)
-    x = tf.keras.layers.LayerNormalization()(x)
-    x = tf.keras.layers.Activation("relu")(x)
-
     return x
 
 
@@ -51,15 +41,5 @@ def encoder_block(X, num_filters, pool=True):
     X = conv2d_block(X, num_filters // 2)
     X = conv2d_block(X, num_filters)
     if pool:
-        p = tf.keras.layers.MaxPool2D(2, 2)(X)
-    else:
-        p = X
-    return X, p
-
-
-def decoder_block(X, skip_features, num_filters, unpool=True):
-    if unpool:
-        X = tf.keras.layers.Conv2DTranspose(num_filters, (2, 2), strides=2, padding="same")(X)
-    X = tf.keras.layers.Concatenate()([X, skip_features])
-    X = conv2d_block(X, num_filters)
+        X = tf.keras.layers.MaxPool2D(2, 2)(X)
     return X

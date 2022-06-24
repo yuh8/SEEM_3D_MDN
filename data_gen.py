@@ -78,7 +78,7 @@ def get_and_save_data_batch(smiles_path, dest_data_path, batch_num=50000):
                 _X = sp.COO(np.stack(G[:BATCH_SIZE]))
                 _y = sp.COO(np.stack(D[:BATCH_SIZE]))
                 _z = sp.COO(np.stack(R[:BATCH_SIZE]))
-                _data = (_X, _y, _z)
+                _data = (_X, _z)
                 with open(dest_data_path + 'GDR_{}.pkl'.format(batch), 'wb') as f:
                     pickle.dump(_data, f)
 
@@ -100,7 +100,7 @@ def get_and_save_data_batch(smiles_path, dest_data_path, batch_num=50000):
         _X = sp.COO(np.stack(G))
         _y = sp.COO(np.stack(D))
         _z = sp.COO(np.stack(R))
-        _data = (_X, _y, _z)
+        _data = (_X, _z)
         with open(dest_data_path + 'GDR_{}.pkl'.format(batch), 'wb') as f:
             pickle.dump(_data, f)
 

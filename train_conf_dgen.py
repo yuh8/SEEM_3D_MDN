@@ -7,9 +7,9 @@ from datetime import date
 from tensorflow import keras
 from tensorflow.keras import layers, models
 from multiprocessing import freeze_support
-from src.embed_utils import encoder_block, decoder_block, conv2d_block
-from src.misc_utils import create_folder, save_model_to_json
-from src.CONSTS import (MAX_NUM_ATOMS, FEATURE_DEPTH, NUM_COMPS, OUTPUT_DEPTH, TF_EPS)
+from src.embed_utils import encoder_block
+from src.misc_utils import create_folder, save_model_to_json, kabsch_fit, align_conf
+from src.CONSTS import (MAX_NUM_ATOMS, FEATURE_DEPTH, NUM_COMPS, TF_EPS)
 
 np.set_printoptions(threshold=np.inf)
 np.set_printoptions(linewidth=1000)
@@ -28,59 +28,82 @@ tfd = tfp.distributions
 
 def core_model():
     '''
-    mini unet
+    mini resnet
     '''
     # [BATCH, MAX_NUM_ATOMS, MAX_NUM_ATOMS, FEATURE_DEPTH]
     inputs = layers.Input(shape=(MAX_NUM_ATOMS, MAX_NUM_ATOMS, FEATURE_DEPTH))
-    s1, p1 = encoder_block(inputs, 64, pool=False)
-    s2, p2 = encoder_block(p1, 64)
-    s3, p3 = encoder_block(p2, 128, pool=False)
-    s4, p4 = encoder_block(p3, 128)
-    s5, p5 = encoder_block(p4, 256, pool=False)
-    s6, p6 = encoder_block(p5, 384)
+    out = encoder_block(inputs, 64, pool=False)
+    out = encoder_block(out, 64)
+    out = encoder_block(out, 128, pool=False)
+    out = encoder_block(out, 128)
+    out = encoder_block(out, 256, pool=False)
+    out = encoder_block(out, 256)
+    out = encoder_block(out, 512, pool=False)
+    out = encoder_block(out, 512)
+    out = tf.keras.layers.GlobalMaxPooling2D()(out)
+    out = tf.keras.layers.BatchNormalization()(out)
+    out = tf.keras.layers.Activation("relu")(out)
 
-    b1 = conv2d_block(p6, 512)
-
-    d1 = decoder_block(b1, s6, 384)
-    d2 = decoder_block(d1, s5, 256, unpool=False)
-    d3 = decoder_block(d2, s4, 128)
-    d4 = decoder_block(d3, s3, 128, unpool=False)
-    d5 = decoder_block(d4, s2, 64)
-    d6 = decoder_block(d5, s1, 64, unpool=False)
-
-    # Add a per-pixel classification layer
-    logits = layers.Conv2D(OUTPUT_DEPTH, 1, activation=None, padding="same", use_bias=False)(d6)
-    return inputs, logits
+    out = tf.keras.layers.Dense(MAX_NUM_ATOMS * 6, use_bias=False)(out)
+    out = tf.reshape(out, [-1, MAX_NUM_ATOMS, 6])
+    return inputs, out
 
 
 def loss_func(y_true, y_pred):
-    # compute only for upper triangle
-    # y_true = tf.linalg.band_part(y_true, 0, -1)
-    comp_weight, mean, log_std = tf.split(y_pred, 3, axis=-1)
-    comp_weight = tf.nn.softmax(comp_weight, axis=-1)
-    dist = tfd.Normal(loc=mean, scale=tf.math.exp(log_std))
-    # [BATCH, MAX_NUM_ATOMS, MAX_NUM_ATOMS, NUM_COMPS]
-    _loss = comp_weight * dist.prob(y_true)
-    # [BATCH, MAX_NUM_ATOMS, MAX_NUM_ATOMS]
-    _loss = tf.reduce_sum(_loss, axis=-1)
-    _loss = tf.math.log(_loss + TF_EPS)
-    mask = tf.squeeze(tf.cast(y_true != 0, tf.float32))
+    # [B,N,1]
+    mask = tf.cast(tf.reduce_sum(y_true, axis=-1, keepdims=True) != 0, tf.float32)
+    y_pred *= mask
+    x_mean_std, y_mean_std, z_mean_std = tf.split(y_pred, 3, axis=-1)
+
+    y_true_aligned = tf.py_function(align_conf,
+                                    inp=[x_mean_std, y_mean_std, z_mean_std, y_true, mask],
+                                    Tout=[tf.float32])
+
+    x_mean = tf.expand_dims(x_mean_std[..., 0], axis=-1)
+    x_log_std = tf.expand_dims(x_mean_std[..., 1], axis=-1)
+    x_pdf = tfd.Normal(loc=x_mean, scale=tf.math.exp(x_log_std))
+    aligned_x = tf.expand_dims(y_true_aligned[..., 0], axis=-1)
+    x_log_density = tf.math.log(x_pdf.prob(aligned_x) + TF_EPS)
+
+    y_mean = tf.expand_dims(y_mean_std[..., 0], axis=-1)
+    y_log_std = tf.expand_dims(y_mean_std[..., 1], axis=-1)
+    y_pdf = tfd.Normal(loc=y_mean, scale=tf.math.exp(y_log_std))
+    aligned_y = tf.expand_dims(y_true_aligned[..., 1], axis=-1)
+    y_log_density = tf.math.log(y_pdf.prob(aligned_y) + TF_EPS)
+
+    z_mean = tf.expand_dims(z_mean_std[..., 0], axis=-1)
+    z_log_std = tf.expand_dims(z_mean_std[..., 1], axis=-1)
+    z_pdf = tfd.Normal(loc=z_mean, scale=tf.math.exp(z_log_std))
+    aligned_z = tf.expand_dims(y_true_aligned[..., 2], axis=-1)
+    z_log_density = tf.math.log(z_pdf.prob(aligned_z) + TF_EPS)
+
+    # [BATCH, MAX_NUM_ATOMS, 1]
+    _loss = x_log_density + y_log_density + z_log_density
+    # [BATCH, MAX_NUM_ATOMS, 1]
+    _loss = tf.reduce_sum(_loss, axis=-1, keepdims=True)
     _loss *= mask
     loss = -tf.reduce_sum(_loss, axis=[1, 2])
     return loss
 
 
-def distance_rmse(y_true, y_pred):
-    # compute only for upper triangle
-    # y_true = tf.linalg.band_part(y_true, 0, -1)
-    comp_weight, mean, _ = tf.split(y_pred, 3, axis=-1)
-    comp_weight = tf.nn.softmax(comp_weight, axis=-1)
-    se = (mean - y_true)**2
-    se *= comp_weight
-    se = tf.reduce_sum(se, axis=-1)
-    mask = tf.squeeze(tf.cast(y_true != 0, tf.float32))
-    se *= mask
-    loss = tf.reduce_sum(se, axis=[1, 2]) / tf.reduce_sum(mask, axis=[1, 2])
+def distance_rmsd(y_true, y_pred):
+    # [B,N,1]
+    mask = tf.cast(tf.reduce_sum(y_true, axis=-1, keepdims=True) != 0, tf.float32)
+    y_pred *= mask
+    x_mean_std, y_mean_std, z_mean_std = tf.split(y_pred, 3, axis=-1)
+
+    y_true_aligned = tf.py_function(align_conf,
+                                    inp=[x_mean_std, y_mean_std, z_mean_std, y_true, mask],
+                                    Tout=[tf.float32])
+    y_pred_mean = tf.stack([x_mean_std[..., 0],
+                            y_mean_std[..., 0],
+                            z_mean_std[..., 0]], axis=-1)
+
+    total_row = tf.reduce_sum(mask, axis=1, keepdims=True)
+    loss = tf.math.squared_difference(y_pred_mean, y_true_aligned)
+    loss = tf.reduce_sum(loss, axis=-1)
+    loss = tf.reduce_sum(loss, axis=-1) / tf.squeeze(total_row)
+    # [BATCH,]
     loss = tf.math.sqrt(loss)
     return loss
 
@@ -124,15 +147,11 @@ def data_iterator(data_path):
                 GD = pickle.load(handle)
 
             G = GD[0].todense()
-            D = GD[1].todense()
-            D -= d_mean
-            D /= d_std
-            mask = G.sum(-1) > 3
-            D *= mask
+            R = GD[1].todense()
 
             sample_nums = np.arange(G.shape[0])
             np.random.shuffle(sample_nums)
-            yield G[sample_nums, ...], np.expand_dims(D[sample_nums, ...], axis=-1)
+            yield G[sample_nums, ...], R[sample_nums, ...]
 
 
 def data_iterator_test(data_path):
@@ -144,12 +163,8 @@ def data_iterator_test(data_path):
             GD = pickle.load(handle)
 
         G = GD[0].todense()
-        D = GD[1].todense()
-        D -= d_mean
-        D /= d_std
-        mask = G.sum(-1) > 3
-        D *= mask
-        yield G, np.expand_dims(D, axis=-1)
+        R = GD[1].todense()
+        yield G, R
 
 
 if __name__ == "__main__":
@@ -177,7 +192,8 @@ if __name__ == "__main__":
 
     X, logits = core_model()
 
-    model = model = keras.Model(inputs=X, outputs=logits)
+    model = keras.Model(inputs=X, outputs=logits)
+    breakpoint()
 
     model.compile(optimizer=get_optimizer(),
                   loss=loss_func, metrics=[distance_rmse])
