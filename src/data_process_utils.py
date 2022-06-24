@@ -119,3 +119,22 @@ def mol_to_tensor(mol):
         d[sink_idx, source_idx] = dist
 
     return smi_graph, d, R
+
+
+def mol_to_d_dist(conf_df):
+    dist_kind = {}
+    for i in range(200):
+        dist_kind[i] = []
+
+    for _, mol_row in conf_df.iterrows():
+        mol = mol_row.rd_mol
+        graph, max_neighbor_len = mol_to_extended_graph(mol)
+
+        for (source_idx, sink_idx) in graph.edges:
+            kind = graph.edges[(source_idx, sink_idx)]['kind']
+            if source_idx == 0:
+                dist_list = dist_kind[kind]
+                _, dist = get_edge_feature(mol, source_idx, sink_idx, kind, max_neighbor_len)
+                dist_list.append(dist)
+                dist_kind[kind] = dist_list
+    return dist_kind

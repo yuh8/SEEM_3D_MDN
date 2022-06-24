@@ -21,26 +21,26 @@ def get_max_min_bound(bounds_matrix):
     return bounds_matrix
 
 
-def embed_bounds_matrix(mol, bounds_matrix, seed):
+def embed_bounds_matrix(mol, bounds_matrix, num_confs, seed):
     DistanceGeometry.DoTriangleSmoothing(bounds_matrix)
     ps = rdDistGeom.EmbedParameters()
     ps.numThreads = 0  # max number of threads supported by the system will be used
     ps.useRandomCoords = True  # recommended for larger molecules
-    ps.clearConfs = False
+    ps.clearConfs = True
     ps.randomSeed = seed
     ps.SetBoundsMat(bounds_matrix)
 
-    return rdDistGeom.EmbedMolecule(mol, ps)
+    return rdDistGeom.EmbedMultipleConfs(mol, num_confs, ps)
 
 
-def embed_conformer(mol, means, stds, d_mean, d_std, mask, seed):
+def embed_conformer(mol, num_confs, means, stds, d_mean, d_std, mask, seed):
     num_atoms = len([atom.GetSymbol() for atom in mol.GetAtoms()])
-    bound_upper = np.triu(means, 1) + np.triu(stds, 1)
+    bound_upper = np.triu(means, 1) + 3 * np.triu(stds, 1)
     bound_upper *= d_std * np.triu(mask)
     bound_upper += d_mean * np.triu(mask)
     bound_upper = bound_upper[:num_atoms, :num_atoms]
 
-    bound_lower = np.triu(means, 1) - np.triu(stds, 1)
+    bound_lower = np.triu(means, 1) - 3 * np.triu(stds, 1)
     bound_lower *= d_std * np.triu(mask)
     bound_lower += d_mean * np.triu(mask)
     bound_lower = bound_lower[:num_atoms, :num_atoms].T
@@ -50,7 +50,7 @@ def embed_conformer(mol, means, stds, d_mean, d_std, mask, seed):
     np.fill_diagonal(bounds_matrix, 0)
     bounds_matrix = bounds_matrix.astype(np.double)
 
-    return embed_bounds_matrix(mol, bounds_matrix, seed)
+    return embed_bounds_matrix(mol, bounds_matrix, num_confs, seed)
 
 
 def embed_conformer_gt(mol, means, d_mean, d_std, mask, seed):

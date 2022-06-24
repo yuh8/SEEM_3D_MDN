@@ -32,7 +32,7 @@ def get_train_val_test_smiles():
     pickle_save(smiles_val, 'D:/seem_3d_data/test_data/val_batch/smiles.pkl')
 
 
-def get_and_save_data_batch(smiles_path, dest_data_path, batch_num=100000):
+def get_and_save_data_batch(smiles_path, dest_data_path, batch_num=50000):
     rs = RunningStats()
     drugs_file = "D:/seem_3d_data/data/rdkit_folder/summary_drugs.json"
     with open(drugs_file, "r") as f:
