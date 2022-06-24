@@ -8,7 +8,7 @@ from tensorflow import keras
 from tensorflow.keras import layers, models
 from multiprocessing import freeze_support
 from src.embed_utils import encoder_block
-from src.misc_utils import create_folder, save_model_to_json, kabsch_fit, align_conf
+from src.misc_utils import create_folder, save_model_to_json, align_conf
 from src.CONSTS import (MAX_NUM_ATOMS, FEATURE_DEPTH, NUM_COMPS, TF_EPS)
 
 np.set_printoptions(threshold=np.inf)
@@ -44,8 +44,8 @@ def core_model():
     out = tf.keras.layers.BatchNormalization()(out)
     out = tf.keras.layers.Activation("relu")(out)
 
-    out = tf.keras.layers.Dense(MAX_NUM_ATOMS * 6, use_bias=False)(out)
-    out = tf.reshape(out, [-1, MAX_NUM_ATOMS, 6])
+    out = tf.keras.layers.Dense(MAX_NUM_ATOMS * 6 * NUM_COMPS, use_bias=False)(out)
+    out = tf.reshape(out, [-1, MAX_NUM_ATOMS, 6 * NUM_COMPS])
     return inputs, out
 
 
@@ -55,9 +55,9 @@ def loss_func(y_true, y_pred):
     y_pred *= mask
     x_mean_std, y_mean_std, z_mean_std = tf.split(y_pred, 3, axis=-1)
 
-    y_true_aligned = tf.py_function(align_conf,
-                                    inp=[x_mean_std, y_mean_std, z_mean_std, y_true, mask],
-                                    Tout=[tf.float32])
+    y_true_aligned = tf.stop_gradient(tf.py_function(align_conf,
+                                                     inp=[x_mean_std, y_mean_std, z_mean_std, y_true, mask],
+                                                     Tout=tf.float32))
 
     x_mean = tf.expand_dims(x_mean_std[..., 0], axis=-1)
     x_log_std = tf.expand_dims(x_mean_std[..., 1], axis=-1)
@@ -168,9 +168,9 @@ def data_iterator_test(data_path):
 
 if __name__ == "__main__":
     freeze_support()
-    ckpt_path = 'checkpoints/generator_d_K_{}/'.format(NUM_COMPS)
+    ckpt_path = 'checkpoints/generator_R_K_{}/'.format(NUM_COMPS)
     create_folder(ckpt_path)
-    create_folder("conf_model_d_K_{}".format(NUM_COMPS))
+    create_folder("conf_model_R_K_{}".format(NUM_COMPS))
     train_path = 'D:/seem_3d_data/train_data/train_batch/'
     val_path = 'D:/seem_3d_data/test_data/val_batch/'
     test_path = 'D:/seem_3d_data/test_data/test_batch/'
@@ -192,17 +192,15 @@ if __name__ == "__main__":
     X, logits = core_model()
 
     model = keras.Model(inputs=X, outputs=logits)
-    breakpoint()
-
     model.compile(optimizer=get_optimizer(),
-                  loss=loss_func, metrics=[distance_rmse])
+                  loss=loss_func, metrics=[distance_rmsd])
 
-    save_model_to_json(model, "conf_model_d_K_{}/conf_model_d.json".format(NUM_COMPS))
+    save_model_to_json(model, "conf_model_R_K_{}/conf_model_d.json".format(NUM_COMPS))
     model.summary()
     breakpoint()
 
     try:
-        model.load_weights("./checkpoints/generator_d_K_1/")
+        model.load_weights("./checkpoints/generator_R_K_{}/".format(NUM_COMPS))
     except:
         print('no exitsing model detected, training starts afresh')
         pass
@@ -217,7 +215,7 @@ if __name__ == "__main__":
                          return_dict=True)
 
     # save trained model in two ways
-    model.save("conf_model_d_full_K_{}/".format(NUM_COMPS))
-    model_new = models.load_model("conf_model_d_full_K_{}/".format(NUM_COMPS))
+    model.save("conf_model_R_full_K_{}/".format(NUM_COMPS))
+    model_new = models.load_model("conf_model_R_full_K_{}/".format(NUM_COMPS))
     res = model_new.evaluate(data_iterator_test(test_path),
                              return_dict=True)
