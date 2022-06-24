@@ -120,7 +120,7 @@ def kabsch(P, Q):
     """
 
     # [B,D,D]
-    C = np.matmul(np.transpose(P, [2, 1]), Q)
+    C = np.matmul(np.transpose(P, [0, 2, 1]), Q)
 
     # Computation of the optimal rotation matrix
     # This can be done using singular value decomposition (SVD)
@@ -130,13 +130,11 @@ def kabsch(P, Q):
     # And finally calculating the optimal rotation matrix U
     # see http://en.wikipedia.org/wiki/Kabsch_algorithm
     U, _, VT = np.linalg.svd(C)
-    d = (np.linalg.det(VT) * np.linalg.det(U)) < 0.0
-    V = np.transpose(VT, [2, 1])
-    V[d, ..., -1] = -V[d, ..., -1]
+    d = (np.linalg.det(U) * np.linalg.det(VT)) < 0.0
+    U[d, ..., -1] = -U[d, ..., -1]
 
     # Create Rotation matrix U
-    Uh = np.transpose(U, [2, 1])
-    R = np.matmul(V, Uh)
+    R = np.matmul(U, VT)
     return R
 
 
@@ -156,10 +154,9 @@ def kabsch_rotate(P, Q):
         rotated
     """
     R = kabsch(P, Q)
-    Rh = np.transpose(R, [2, 1])
 
     # Rotate P [B,N,D] * [B,D,D]
-    P = np.matmul(P, Rh)
+    P = np.matmul(P, R)
     return P
 
 
@@ -182,6 +179,6 @@ def align_conf(x_mean_std, y_mean_std, z_mean_std, y_true, mask):
     y_mean = np.expand_dims(y_mean_std.numpy()[..., 0], axis=-1)
     z_mean = np.expand_dims(z_mean_std.numpy()[..., 0], axis=-1)
     _y_pred = np.concatenate((x_mean, y_mean, z_mean), axis=-1)
-    # rotate true on predicted coordinates
+    # superimpose true onto predicted coordinates
     y_true_aligned = kabsch_fit(y_true.numpy(), _y_pred, mask.numpy()).astype(np.float32)
     return tf.convert_to_tensor(y_true_aligned)

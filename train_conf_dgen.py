@@ -80,7 +80,6 @@ def loss_func(y_true, y_pred):
     # [BATCH, MAX_NUM_ATOMS, 1]
     _loss = x_log_density + y_log_density + z_log_density
     # [BATCH, MAX_NUM_ATOMS, 1]
-    _loss = tf.reduce_sum(_loss, axis=-1, keepdims=True)
     _loss *= mask
     loss = -tf.reduce_sum(_loss, axis=[1, 2])
     return loss
