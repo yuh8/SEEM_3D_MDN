@@ -8,7 +8,7 @@ from tensorflow import keras
 from tensorflow.keras import layers, models
 from multiprocessing import freeze_support
 from src.embed_utils import encoder_block
-from src.misc_utils import create_folder, save_model_to_json, align_conf
+from src.misc_utils import create_folder, save_model_to_json, align_conf, tf_contriod
 from src.CONSTS import (MAX_NUM_ATOMS, FEATURE_DEPTH, NUM_COMPS, TF_EPS)
 
 np.set_printoptions(threshold=np.inf)
@@ -49,33 +49,48 @@ def core_model():
     return inputs, out
 
 
+def get_mean(xyz_pred):
+    mean = tf.expand_dims(xyz_pred[..., 0], axis=-1)
+    return mean
+
+
+def get_logstd(xyz_pred):
+    logstd = tf.expand_dims(xyz_pred[..., 1], axis=-1)
+    return logstd
+
+
 def loss_func(y_true, y_pred):
     # [B,N,1]
     mask = tf.cast(tf.reduce_sum(y_true, axis=-1, keepdims=True) != 0, tf.float32)
-    y_pred *= mask
-    x_mean_std, y_mean_std, z_mean_std = tf.split(y_pred, 3, axis=-1)
+    x_mean_logstd, y_mean_logstd, z_mean_logstd = tf.split(y_pred, 3, axis=-1)
 
-    y_true_aligned = tf.stop_gradient(tf.py_function(align_conf,
-                                                     inp=[x_mean_std, y_mean_std, z_mean_std, y_true, mask],
-                                                     Tout=tf.float32))
+    x_mean = get_mean(x_mean_logstd)
+    y_mean = get_mean(y_mean_logstd)
+    z_mean = get_mean(z_mean_logstd)
+    y_pred_mean = tf.concat([x_mean, y_mean, z_mean], axis=-1) * mask
 
-    x_mean = tf.expand_dims(x_mean_std[..., 0], axis=-1)
-    x_log_std = tf.expand_dims(x_mean_std[..., 1], axis=-1)
-    x_pdf = tfd.Normal(loc=x_mean, scale=tf.math.exp(x_log_std))
+    # align y_true to the mean of y_pred
+    Rot = tf.stop_gradient(tf.py_function(align_conf,
+                                          inp=[y_true, y_pred_mean, mask],
+                                          Tout=tf.float32))
+    QC = tf.stop_gradient(tf_contriod(y_pred_mean, mask))
+    y_true_aligned = tf.matmul(y_true, Rot) + QC
+    y_true_aligned *= mask
+
+    x_log_logstd = get_logstd(x_mean_logstd)
+    x_pdf = tfd.Normal(loc=x_mean, scale=tf.math.exp(x_log_logstd))
     aligned_x = tf.expand_dims(y_true_aligned[..., 0], axis=-1)
-    x_log_density = tf.math.log(x_pdf.prob(aligned_x) + TF_EPS)
+    x_log_density = tf.math.log(x_pdf.prob(aligned_x) * mask + TF_EPS)
 
-    y_mean = tf.expand_dims(y_mean_std[..., 0], axis=-1)
-    y_log_std = tf.expand_dims(y_mean_std[..., 1], axis=-1)
-    y_pdf = tfd.Normal(loc=y_mean, scale=tf.math.exp(y_log_std))
+    y_log_logstd = get_logstd(y_mean_logstd)
+    y_pdf = tfd.Normal(loc=y_mean, scale=tf.math.exp(y_log_logstd))
     aligned_y = tf.expand_dims(y_true_aligned[..., 1], axis=-1)
-    y_log_density = tf.math.log(y_pdf.prob(aligned_y) + TF_EPS)
+    y_log_density = tf.math.log(y_pdf.prob(aligned_y) * mask + TF_EPS)
 
-    z_mean = tf.expand_dims(z_mean_std[..., 0], axis=-1)
-    z_log_std = tf.expand_dims(z_mean_std[..., 1], axis=-1)
-    z_pdf = tfd.Normal(loc=z_mean, scale=tf.math.exp(z_log_std))
+    z_log_logstd = get_logstd(z_mean_logstd)
+    z_pdf = tfd.Normal(loc=z_mean, scale=tf.math.exp(z_log_logstd))
     aligned_z = tf.expand_dims(y_true_aligned[..., 2], axis=-1)
-    z_log_density = tf.math.log(z_pdf.prob(aligned_z) + TF_EPS)
+    z_log_density = tf.math.log(z_pdf.prob(aligned_z) * mask + TF_EPS)
 
     # [BATCH, MAX_NUM_ATOMS, 1]
     _loss = x_log_density + y_log_density + z_log_density
@@ -89,14 +104,14 @@ def distance_rmsd(y_true, y_pred):
     # [B,N,1]
     mask = tf.cast(tf.reduce_sum(y_true, axis=-1, keepdims=True) != 0, tf.float32)
     y_pred *= mask
-    x_mean_std, y_mean_std, z_mean_std = tf.split(y_pred, 3, axis=-1)
+    x_mean_logstd, y_mean_logstd, z_mean_logstd = tf.split(y_pred, 3, axis=-1)
 
     y_true_aligned = tf.py_function(align_conf,
-                                    inp=[x_mean_std, y_mean_std, z_mean_std, y_true, mask],
+                                    inp=[x_mean_logstd, y_mean_logstd, z_mean_logstd, y_true, mask],
                                     Tout=[tf.float32])
-    y_pred_mean = tf.stack([x_mean_std[..., 0],
-                            y_mean_std[..., 0],
-                            z_mean_std[..., 0]], axis=-1)
+    y_pred_mean = tf.stack([x_mean_logstd[..., 0],
+                            y_mean_logstd[..., 0],
+                            z_mean_logstd[..., 0]], axis=-1)
 
     total_row = tf.reduce_sum(mask, axis=1, keepdims=True)
     loss = tf.math.squared_difference(y_pred_mean, y_true_aligned)
@@ -177,7 +192,7 @@ if __name__ == "__main__":
 
     f_name = train_path + 'stats.pkl'
     with open(f_name, 'rb') as handle:
-        d_mean, d_std = pickle.load(handle)
+        d_mean, d_logstd = pickle.load(handle)
 
     train_steps = len(glob.glob(train_path + 'GDR_*.pkl'))
     val_steps = len(glob.glob(val_path + 'GDR_*.pkl'))

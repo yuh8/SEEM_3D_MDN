@@ -96,6 +96,14 @@ def centroid(X, mask):
     return C
 
 
+def tf_contriod(X, mask):
+    # [B,1,1]
+    total_row = tf.reduce_sum(mask, axis=1, keepdims=True)
+    # [B,1,D]
+    C = tf.reduce_sum(X, axis=1, keepdims=True) / total_row
+    return C
+
+
 def kabsch(P, Q):
     """
     Using the Kabsch algorithm with two sets of paired point P and Q, centered
@@ -164,21 +172,15 @@ def kabsch_fit(P, Q, mask):
     '''
     P: [B,N,D]
     Q: [B,N,D]
-
     mask: [B,N,1]
     '''
     QC = centroid(Q, mask)
     Q = (Q - QC) * mask
     P = (P - centroid(P, mask)) * mask
-    P = (kabsch_rotate(P, Q) + QC) * mask
-    return P
+    R = kabsch(P, Q)
+    return R
 
 
-def align_conf(x_mean_std, y_mean_std, z_mean_std, y_true, mask):
-    x_mean = np.expand_dims(x_mean_std.numpy()[..., 0], axis=-1)
-    y_mean = np.expand_dims(y_mean_std.numpy()[..., 0], axis=-1)
-    z_mean = np.expand_dims(z_mean_std.numpy()[..., 0], axis=-1)
-    _y_pred = np.concatenate((x_mean, y_mean, z_mean), axis=-1)
-    # superimpose true onto predicted coordinates
-    y_true_aligned = kabsch_fit(y_true.numpy(), _y_pred, mask.numpy()).astype(np.float32)
-    return tf.convert_to_tensor(y_true_aligned)
+def align_conf(y_pred, y_true, mask):
+    R = kabsch_fit(y_pred.numpy(), y_true.numpy(), mask.numpy()).astype(np.float32)
+    return tf.convert_to_tensor(R)
