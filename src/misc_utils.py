@@ -183,7 +183,7 @@ def kabsch_fit(P, Q, mask):
 
 
 def align_conf(y_pred, y_true, mask):
-    R = kabsch_fit(y_true.numpy(), y_pred.numpy(), mask.numpy()).astype(np.float32)
+    R = kabsch_fit(y_pred.numpy(), y_true.numpy(), mask.numpy()).astype(np.float32)
     return tf.convert_to_tensor(R)
 
 

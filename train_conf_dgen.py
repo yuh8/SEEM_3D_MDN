@@ -2,7 +2,6 @@ import glob
 import pickle
 import numpy as np
 import tensorflow as tf
-import tensorflow_probability as tfp
 from datetime import date
 from tensorflow import keras
 from tensorflow.keras import layers, models
@@ -48,23 +47,20 @@ def core_model():
     return inputs, out
 
 
-def reparameterize(mean_logvar):
-    batch = tf.shape(mean_logvar)[0]
-    dim_0 = tf.shape(mean_logvar)[1]
-    dim_1 = tf.shape(mean_logvar)[2] // 2
-    h_mean = tf.expand_dims(mean_logvar[..., 0], axis=-1)
-    h_log_var = tf.expand_dims(mean_logvar[..., 1], axis=-1)
-    epsilon = tf.keras.backend.random_normal(shape=(batch, dim_0, dim_1))
-    return h_mean + tf.exp(0.5 * h_log_var) * epsilon
+def reparameterize(mean_logstd):
+    mean = tf.expand_dims(mean_logstd[..., 0], axis=-1)
+    log_std = tf.expand_dims(mean_logstd[..., 1], axis=-1)
+    epsilon = tf.keras.backend.random_normal(shape=mean.shape)
+    return mean + tf.exp(log_std) * epsilon
 
 
 def loss_func(y_true, y_pred):
     # [B,N,1]
     mask = tf.cast(tf.reduce_sum(tf.abs(y_true), axis=-1, keepdims=True) != 0, tf.float32)
-    x_mean_std, y_mean_std, z_mean_std = tf.split(y_pred, 3, axis=-1)
-    x_coord = reparameterize(x_mean_std)
-    y_coord = reparameterize(y_mean_std)
-    z_coord = reparameterize(z_mean_std)
+    x_mean_logstd, y_mean_logstd, z_mean_logstd = tf.split(y_pred, 3, axis=-1)
+    x_coord = reparameterize(x_mean_logstd)
+    y_coord = reparameterize(y_mean_logstd)
+    z_coord = reparameterize(z_mean_logstd)
     y_pred_sample = tf.concat([x_coord, y_coord, z_coord], axis=-1) * mask
 
     Rot = tf.stop_gradient(tf.py_function(align_conf,
@@ -75,7 +71,7 @@ def loss_func(y_true, y_pred):
     y_pred_aligned *= mask
 
     total_row = tf.reduce_sum(mask, axis=1, keepdims=True)
-    loss = tf.math.squared_difference(y_pred_aligned, y_true)
+    loss = tf.math.squared_difference(y_true, y_pred_aligned)
     loss = tf.reduce_sum(loss, axis=-1)
     loss = tf.reduce_sum(loss, axis=-1) / tf.squeeze(total_row)
     # [BATCH,]
@@ -86,10 +82,10 @@ def loss_func(y_true, y_pred):
 def distance_rmsd(y_true, y_pred):
     # [B,N,1]
     mask = tf.cast(tf.reduce_sum(tf.abs(y_true), axis=-1, keepdims=True) != 0, tf.float32)
-    x_mean_std, y_mean_std, z_mean_std = tf.split(y_pred, 3, axis=-1)
-    y_pred_mean = tf.stack([x_mean_std[..., 0],
-                            y_mean_std[..., 0],
-                            z_mean_std[..., 0]], axis=-1) * mask
+    x_mean_logstd, y_mean_logstd, z_mean_logstd = tf.split(y_pred, 3, axis=-1)
+    y_pred_mean = tf.stack([x_mean_logstd[..., 0],
+                            y_mean_logstd[..., 0],
+                            z_mean_logstd[..., 0]], axis=-1) * mask
 
     Rot = tf.py_function(align_conf,
                          inp=[y_pred_mean, y_true, mask],
