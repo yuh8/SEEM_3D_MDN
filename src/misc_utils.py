@@ -174,11 +174,16 @@ def kabsch_fit(P, Q, mask):
     return P
 
 
-def align_conf(x_mean_std, y_mean_std, z_mean_std, y_true, mask):
-    x_mean = np.expand_dims(x_mean_std.numpy()[..., 0], axis=-1)
-    y_mean = np.expand_dims(y_mean_std.numpy()[..., 0], axis=-1)
-    z_mean = np.expand_dims(z_mean_std.numpy()[..., 0], axis=-1)
-    _y_pred = np.concatenate((x_mean, y_mean, z_mean), axis=-1)
-    # superimpose true onto predicted coordinates
-    y_true_aligned = kabsch_fit(y_true.numpy(), _y_pred, mask.numpy()).astype(np.float32)
-    return tf.convert_to_tensor(y_true_aligned)
+def align_conf(y_pred, y_true, mask):
+    y_pred_aligned = kabsch_fit(y_pred.numpy(), y_true.numpy(), mask.numpy()).astype(np.float32)
+    return tf.convert_to_tensor(y_pred_aligned)
+
+
+def reparameterize(mean_logvar):
+    batch = tf.shape(mean_logvar)[0]
+    dim_0 = tf.shape(mean_logvar)[1]
+    dim_1 = tf.shape(mean_logvar)[2]
+    h_mean = tf.expand_dims(mean_logvar[..., 0], axis=-1)
+    h_log_var = tf.expand_dims(mean_logvar[..., 1], axis=-1)
+    epsilon = tf.keras.backend.random_normal(shape=(batch, dim_0, dim_1))
+    return h_mean + tf.exp(0.5 * h_log_var) * epsilon
