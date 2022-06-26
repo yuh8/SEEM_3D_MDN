@@ -39,7 +39,7 @@ def core_model():
     out = encoder_block(out, 512, pool=False)
     out = encoder_block(out, 512)
     out = tf.keras.layers.GlobalMaxPooling2D()(out)
-    out = tf.keras.layers.BatchNormalization()(out)
+    out = tf.keras.layers.LayerNormalization()(out)
     out = tf.keras.layers.Activation("relu")(out)
 
     out = tf.keras.layers.Dense(MAX_NUM_ATOMS * 6 * NUM_COMPS, use_bias=False)(out)
@@ -50,7 +50,7 @@ def core_model():
 def reparameterize(mean_logstd):
     mean = tf.expand_dims(mean_logstd[..., 0], axis=-1)
     log_std = tf.expand_dims(mean_logstd[..., 1], axis=-1)
-    epsilon = tf.keras.backend.random_normal(shape=mean.shape)
+    epsilon = tf.keras.backend.random_normal(shape=tf.shape(mean))
     return mean + tf.exp(log_std) * epsilon
 
 
@@ -87,10 +87,10 @@ def distance_rmsd(y_true, y_pred):
                             y_mean_logstd[..., 0],
                             z_mean_logstd[..., 0]], axis=-1) * mask
 
-    Rot = tf.py_function(align_conf,
-                         inp=[y_pred_mean, y_true, mask],
-                         Tout=tf.float32)
-    QC = tf_contriod(y_true, mask)
+    Rot = tf.stop_gradient(tf.py_function(align_conf,
+                                          inp=[y_pred_mean, y_true, mask],
+                                          Tout=tf.float32))
+    QC = tf.stop_gradient(tf_contriod(y_true, mask))
     y_pred_aligned = tf.matmul(y_pred_mean, Rot) + QC
     y_pred_aligned *= mask
 
