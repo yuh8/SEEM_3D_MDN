@@ -282,7 +282,7 @@ if __name__ == "__main__":
     callbacks = [tf.keras.callbacks.ModelCheckpoint(ckpt_path,
                                                     save_freq=1000,
                                                     save_weights_only=True,
-                                                    monitor='loss',
+                                                    monitor='dist_logden',
                                                     mode='min',
                                                     save_best_only=True)]
     dist_net = get_dist_core_model()

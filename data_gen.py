@@ -115,6 +115,6 @@ if __name__ == "__main__":
     get_and_save_data_batch('D:/seem_3d_data/train_data/train_batch/smiles.pkl',
                             'D:/seem_3d_data/train_data/train_batch/')
     get_and_save_data_batch('D:/seem_3d_data/test_data/val_batch/smiles.pkl',
-                            'D:/seem_3d_data/test_data/val_batch/', batch_num=5000)
+                            'D:/seem_3d_data/test_data/val_batch/', batch_num=2000)
     get_and_save_data_batch('D:/seem_3d_data/test_data/test_batch/smiles.pkl',
-                            'D:/seem_3d_data/test_data/test_batch/', batch_num=10000)
+                            'D:/seem_3d_data/test_data/test_batch/', batch_num=2000)
