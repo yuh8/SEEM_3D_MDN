@@ -39,8 +39,8 @@ def core_model():
     out = encoder_block(out, 512, pool=False)
     out = encoder_block(out, 512)
     out = tf.keras.layers.GlobalMaxPooling2D()(out)
-    out = tf.keras.layers.LayerNormalization()(out)
     out = tf.keras.layers.Activation("relu")(out)
+    out = tf.keras.layers.LayerNormalization()(out)
 
     out = tf.keras.layers.Dense(MAX_NUM_ATOMS * 6 * NUM_COMPS, use_bias=False)(out)
     out = tf.reshape(out, [-1, MAX_NUM_ATOMS, 6 * NUM_COMPS])
@@ -131,7 +131,7 @@ def get_optimizer(finetune=False):
     return opt_op
 
 
-def data_iterator(data_path):
+def data_iterator(data_path, chunkify=True):
     num_files = len(glob.glob(data_path + 'GDR_*.pkl'))
     batch_nums = np.arange(num_files)
     while True:
@@ -146,7 +146,16 @@ def data_iterator(data_path):
 
             sample_nums = np.arange(G.shape[0])
             np.random.shuffle(sample_nums)
-            yield G[sample_nums, ...], R[sample_nums, ...]
+            if chunkify:
+                G = G[sample_nums, ...]
+                R = R[sample_nums, ...]
+                G_chunks = np.split(G, 4)
+                R_chunks = np.split(R, 4)
+                for idx, g in enumerate(G_chunks):
+                    yield g, R_chunks[idx]
+            else:
+
+                yield G[sample_nums, ...], R[sample_nums, ...]
 
 
 def data_iterator_test(data_path):

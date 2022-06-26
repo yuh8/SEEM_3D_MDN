@@ -56,13 +56,11 @@ def get_best_RMSD(probe, ref, prbid, refid=-1):
 
 def get_prediction(mol):
     mol_origin = deepcopy(mol)
-    g, _, _ = mol_to_tensor(mol_origin)
+    g, _, R = mol_to_tensor(mol_origin)
     g = np.expand_dims(g, axis=0)
-    mask = g.sum(-1) > 3
-    d_pred = model(g, training=False).numpy()[0]
-    d_pred_mean = np.squeeze(d_pred[..., 1] * mask)
-    d_pred_std = np.squeeze(np.exp(d_pred[..., 2]) * mask)
-    return d_pred_mean, d_pred_std, mask
+    mask = np.abs(R).sum(-1, keepdims=True) > 0
+    d_pred_mean = model(g, training=False).numpy()[0][..., [0, 2, 4]] * mask
+    return d_pred_mean
 
 
 def compute_cov_mat(smiles_path):
@@ -91,7 +89,7 @@ def compute_cov_mat(smiles_path):
         mol_pred = deepcopy(conf_df.iloc[0].rd_mol)
 
         try:
-            d_pred_mean, d_pred_std, mask = get_prediction(mol_pred)
+            d_pred_mean = get_prediction(mol_pred)
         except:
             continue
         num_refs = conf_df.shape[0]
@@ -129,10 +127,10 @@ if __name__ == "__main__":
     test_path = 'D:/seem_3d_data/test_data/test_batch/'
 
     create_folder('gen_samples/')
-    model = load_json_model("conf_model_d_K_1/conf_model_d.json")
+    model = load_json_model("conf_model_R_K_1/conf_model_d.json")
     model.compile(optimizer='adam',
                   loss=loss_func)
-    model.load_weights("./checkpoints/generator_d_K_1_legacy/")
+    model.load_weights("./checkpoints/generator_R_K_1/")
     f_name = train_path + 'stats.pkl'
     with open(f_name, 'rb') as handle:
         d_mean, d_std = pickle.load(handle)
