@@ -41,7 +41,7 @@ def core_model():
     out = encoder_block(out, 512, pool=False)
     out = encoder_block(out, 512)
     out = tf.keras.layers.GlobalMaxPooling2D()(out)
-    out = tf.keras.layers.BatchNormalization()(out)
+    out = tf.keras.layers.LayerNormalization()(out)
     out = tf.keras.layers.Activation("relu")(out)
 
     out = tf.keras.layers.Dense(MAX_NUM_ATOMS * 6 * NUM_COMPS, use_bias=False)(out)
@@ -103,15 +103,17 @@ def loss_func(y_true, y_pred):
 def distance_rmsd(y_true, y_pred):
     # [B,N,1]
     mask = tf.cast(tf.reduce_sum(y_true, axis=-1, keepdims=True) != 0, tf.float32)
-    y_pred *= mask
     x_mean_logstd, y_mean_logstd, z_mean_logstd = tf.split(y_pred, 3, axis=-1)
-
-    y_true_aligned = tf.py_function(align_conf,
-                                    inp=[x_mean_logstd, y_mean_logstd, z_mean_logstd, y_true, mask],
-                                    Tout=[tf.float32])
     y_pred_mean = tf.stack([x_mean_logstd[..., 0],
                             y_mean_logstd[..., 0],
-                            z_mean_logstd[..., 0]], axis=-1)
+                            z_mean_logstd[..., 0]], axis=-1) * mask
+
+    Rot = tf.stop_gradient(tf.py_function(align_conf,
+                                          inp=[y_true, y_pred_mean, mask],
+                                          Tout=tf.float32))
+    QC = tf.stop_gradient(tf_contriod(y_pred_mean, mask))
+    y_true_aligned = tf.matmul(y_true, Rot) + QC
+    y_true_aligned *= mask
 
     total_row = tf.reduce_sum(mask, axis=1, keepdims=True)
     loss = tf.math.squared_difference(y_pred_mean, y_true_aligned)
