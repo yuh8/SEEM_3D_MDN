@@ -2,6 +2,7 @@ import os
 import math
 import json
 import pickle
+import numpy as np
 import tensorflow as tf
 from .CONSTS import TF_EPS
 
@@ -85,3 +86,101 @@ class RunningStats:
 
     def standard_deviation(self):
         return math.sqrt(self.variance())
+
+
+def centroid(X, mask):
+    # [B,1,1]
+    total_row = np.sum(mask, axis=1, keepdims=True)
+    # [B,1,D]
+    C = np.sum(X, axis=1, keepdims=True) / total_row
+    return C
+
+
+def tf_contriod(X, mask):
+    # [B,1,1]
+    total_row = tf.reduce_sum(mask, axis=1, keepdims=True)
+    # [B,1,D]
+    C = tf.reduce_sum(X, axis=1, keepdims=True) / total_row
+    return C
+
+
+def kabsch(P, Q):
+    """
+    Using the Kabsch algorithm with two sets of paired point P and Q, centered
+    around the centroid. Each vector set is represented as an NxD
+    matrix, where D is the the dimension of the space.
+    The algorithm works in three steps:
+    - a centroid translation of P and Q (assumed done before this function
+      call)
+    - the computation of a covariance matrix C
+    - computation of the optimal rotation matrix U
+    For more info see http://en.wikipedia.org/wiki/Kabsch_algorithm
+    Parameters
+    ----------
+    P : array
+        (B,N,D) matrix, where B is batch size, N is points and D is dimension.
+    Q : array
+        (B,N,D) matrix, where B is batch size, N is points and D is dimension.
+    Returns
+    -------
+    U : matrix
+        Rotation matrix (B,D,D)
+    """
+
+    # [B,D,D]
+    C = np.matmul(np.transpose(P, [0, 2, 1]), Q)
+
+    # Computation of the optimal rotation matrix
+    # This can be done using singular value decomposition (SVD)
+    # Getting the sign of the det(V)*(W) to decide
+    # whether we need to correct our rotation matrix to ensure a
+    # right-handed coordinate system.
+    # And finally calculating the optimal rotation matrix U
+    # see http://en.wikipedia.org/wiki/Kabsch_algorithm
+    U, _, VT = np.linalg.svd(C)
+    d = (np.linalg.det(U) * np.linalg.det(VT)) < 0.0
+    U[d, ..., -1] = -U[d, ..., -1]
+
+    # Create Rotation matrix U
+    R = np.matmul(U, VT)
+    return R
+
+
+def kabsch_rotate(P, Q):
+    """
+    Rotate matrix P unto matrix Q using Kabsch algorithm.
+    Parameters
+    ----------
+    P : array
+        (B,N,D) matrix, where B is batch size, N is points and D is dimension.
+    Q : array
+        (B,N,D) matrix, where B is batch size, N is points and D is dimension.
+    Returns
+    -------
+    P : array
+        (B,N,D) matrix, where B is batch size, N is points and D is dimension,
+        rotated
+    """
+    R = kabsch(P, Q)
+
+    # Rotate P [B,N,D] * [B,D,D]
+    P = np.matmul(P, R)
+    return P
+
+
+def kabsch_fit(P, Q, mask):
+    '''
+    P: [B,N,D]
+    Q: [B,N,D]
+    mask: [B,N,1]
+    '''
+    QC = centroid(Q, mask)
+    Q = (Q - QC) * mask
+    P = (P - centroid(P, mask)) * mask
+    R = kabsch(P, Q)
+    return R
+
+
+def align_conf(y_pred, y_true, mask):
+    R = kabsch_fit(y_pred.numpy(), y_true.numpy(), mask.numpy()).astype(np.float32)
+    return tf.convert_to_tensor(R)
