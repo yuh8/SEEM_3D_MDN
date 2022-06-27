@@ -2,8 +2,6 @@ import glob
 import pickle
 import numpy as np
 import tensorflow as tf
-import tensorflow_probability as tfp
-from datetime import date
 from tensorflow import keras
 from tensorflow.keras import Model
 from multiprocessing import freeze_support
@@ -21,9 +19,6 @@ if gpus:
             tf.config.experimental.set_memory_growth(gpu, True)
     except RuntimeError as e:
         print(e)
-
-today = str(date.today())
-tfd = tfp.distributions
 
 
 def get_mertcis():
@@ -43,7 +38,7 @@ def core_model():
 
 def loss_func_r(y_true, y_pred):
     # [B,N,1]
-    mask = tf.cast(tf.reduce_sum(tf.abs(y_true), axis=-1, keepdims=True) != 0, tf.float32)
+    mask = tf.cast(tf.reduce_sum(tf.abs(y_true), axis=-1, keepdims=True) > 0, tf.float32)
     y_pred *= mask
     Rot = tf.stop_gradient(tf.py_function(align_conf,
                                           inp=[y_pred, y_true, mask],
@@ -66,47 +61,12 @@ def loss_func_kl(z_mean, z_logvar):
     return kl_loss
 
 
-def distance_rmsd(r_true, r_pred):
-    # [B,N,1]
-    mask = tf.cast(tf.reduce_sum(tf.abs(r_true), axis=-1, keepdims=True) != 0, tf.float32)
-    r_pred *= mask
-    Rot = tf.stop_gradient(tf.py_function(align_conf,
-                                          inp=[r_pred, r_true, mask],
-                                          Tout=tf.float32))
-    QC = tf.stop_gradient(tf_contriod(r_true, mask))
-    y_pred_aligned = tf.matmul(r_pred, Rot) + QC
-    y_pred_aligned *= mask
-    total_row = tf.reduce_sum(mask, axis=1, keepdims=True)
-    loss = tf.math.squared_difference(y_pred_aligned, r_true)
-    loss = tf.reduce_sum(loss, axis=-1)
-    loss = tf.reduce_sum(loss, axis=-1) / tf.squeeze(total_row)
-    # [BATCH,]
-    loss = tf.math.sqrt(loss)
-    return loss
-
-
-class CustomSchedule(tf.keras.optimizers.schedules.LearningRateSchedule):
-    def __init__(self, d_model, warmup_steps=4000):
-        super(CustomSchedule, self).__init__()
-
-        self.d_model = d_model
-        self.d_model = tf.cast(self.d_model, tf.float32)
-
-        self.warmup_steps = warmup_steps
-
-    def __call__(self, step):
-        arg1 = tf.math.rsqrt(step)
-        arg2 = step * (self.warmup_steps ** -1.5)
-
-        return tf.math.rsqrt(self.d_model) * tf.math.minimum(arg1, arg2)
-
-
 def get_optimizer(finetune=False):
-    lr = 0.001
+    lr = 0.0002
     if finetune:
         lr = 0.00001
     lr_fn = tf.keras.optimizers.schedules.PiecewiseConstantDecay(
-        [1000000, 2000000, 3000000], [lr, lr / 10, lr / 50, lr / 100],
+        [240000, 480000], [lr, lr / 10, lr / 50],
         name=None
     )
     opt_op = tf.keras.optimizers.Adam(learning_rate=lr_fn, global_clipnorm=0.5)
@@ -237,7 +197,7 @@ if __name__ == "__main__":
         pass
 
     convae.fit(data_iterator(train_path),
-               epochs=40,
+               epochs=100,
                validation_data=data_iterator(val_path),
                validation_steps=val_steps,
                callbacks=callbacks,
