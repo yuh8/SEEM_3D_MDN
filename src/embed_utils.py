@@ -42,14 +42,6 @@ def conv2d_block(input, num_filters, kernel_size=3, padding='SAME'):
     x = tf.keras.layers.Activation("relu")(x)
     x = tf.keras.layers.BatchNormalization()(x)
 
-    # if num_filters >= 256:
-    #     x = bottleneck(x, num_filters)
-    # else:
-    #     x = tf.keras.layers.Conv2D(num_filters,
-    #                                kernel_size=kernel_size,
-    #                                padding=padding)(x)
-    # x = tf.keras.layers.Activation("relu")(x)
-    # x = tf.keras.layers.BatchNormalization()(x)
     return x
 
 

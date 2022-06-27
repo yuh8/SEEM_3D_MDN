@@ -102,7 +102,7 @@ class CustomSchedule(tf.keras.optimizers.schedules.LearningRateSchedule):
 
 
 def get_optimizer(finetune=False):
-    lr = 0.0001
+    lr = 0.001
     if finetune:
         lr = 0.00001
     lr_fn = tf.keras.optimizers.schedules.PiecewiseConstantDecay(
@@ -135,7 +135,7 @@ class Seem3D(Model):
             z_mean, z_log_var, r_pred = self(X, training=True)
             kl_loss = loss_func_kl(z_mean, z_log_var)
             rec_loss = loss_func_r(r_true, r_pred)
-            loss = kl_loss + rec_loss
+            loss = 0.001 * kl_loss + rec_loss
 
         # Compute gradients
         trainable_vars = self.trainable_variables

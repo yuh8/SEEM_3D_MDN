@@ -15,7 +15,7 @@ RING_SIZES = range(3, 10)
 
 
 # Atom features
-MAX_NUM_ATOMS = 160
+MAX_NUM_ATOMS = 64
 ATOM_LIST = ['H', 'C', 'N', 'O', 'F', 'S', 'Cl', 'Br', 'P', 'I', 'Na', 'B', 'Si', 'Se', 'K', 'Bi']
 CHARGES = [-2, -1, 0, 1, 2, 3]
 
@@ -44,5 +44,5 @@ OUTPUT_DEPTH = NUM_COMPS + NUM_COMPS * 2
 NUM_FILTERS = 128
 FILTER_SIZE = 3
 NUM_RES_BLOCKS = 20
-BATCH_SIZE = 8
-HIDDEN_SIZE = 512
+BATCH_SIZE = 80
+HIDDEN_SIZE = 256
