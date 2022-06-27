@@ -94,8 +94,7 @@ def get_edge_feature(mol, source_idx, sink_idx, kind, max_neighbor_len):
 
 
 def mol_to_tensor(mol):
-    smi_graph = np.zeros((MAX_NUM_ATOMS, MAX_NUM_ATOMS, FEATURE_DEPTH))
-    d = np.zeros((MAX_NUM_ATOMS, MAX_NUM_ATOMS))
+    smi_graph = np.zeros((MAX_NUM_ATOMS, MAX_NUM_ATOMS, FEATURE_DEPTH + 4))
     R = np.zeros((MAX_NUM_ATOMS, 3))
     conf = mol.GetConformer(0)
     graph, max_neighbor_len = mol_to_extended_graph(mol)
@@ -104,6 +103,7 @@ def mol_to_tensor(mol):
         atom_idx = atom.GetIdx()
         node_feature = get_node_feature(mol, atom_idx)
         smi_graph[atom_idx, atom_idx, :len(node_feature)] = node_feature
+        smi_graph[atom_idx, atom_idx, -4:-1] = conf.GetAtomPosition(atom_idx)
         R[atom_idx, :] = conf.GetAtomPosition(atom_idx)
 
     for (source_idx, sink_idx) in graph.edges:
@@ -113,12 +113,12 @@ def mol_to_tensor(mol):
         smi_graph[source_idx, sink_idx, :len(node_feature)] = node_feature
         smi_graph[sink_idx, source_idx, :len(node_feature)] = node_feature
 
-        smi_graph[source_idx, sink_idx, len(node_feature):] = edge_feature
-        smi_graph[sink_idx, source_idx, len(node_feature):] = edge_feature
-        d[source_idx, sink_idx] = dist
-        d[sink_idx, source_idx] = dist
+        smi_graph[source_idx, sink_idx, len(node_feature):-4] = edge_feature
+        smi_graph[sink_idx, source_idx, len(node_feature):-4] = edge_feature
+        smi_graph[source_idx, sink_idx, -1] = dist
+        smi_graph[sink_idx, source_idx, -1] = dist
 
-    return smi_graph, d, R
+    return smi_graph, R
 
 
 def mol_to_d_dist(conf_df):

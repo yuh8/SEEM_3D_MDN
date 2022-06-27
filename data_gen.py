@@ -40,7 +40,6 @@ def get_and_save_data_batch(smiles_path, dest_data_path, batch_num=50000):
 
     smiles = pickle_load(smiles_path)
     G = []
-    D = []
     R = []
     batch = 0
     for sim in smiles:
@@ -60,34 +59,22 @@ def get_and_save_data_batch(smiles_path, dest_data_path, batch_num=50000):
             mol = mol_row.rd_mol
 
             try:
-                g, d, r = mol_to_tensor(mol)
-                # cacluate mean and std online for distance
-                con_map = g.sum(-1)
-                con_d = d[con_map > 3]
-                for _d in con_d:
-                    rs.push(_d)
+                g, r = mol_to_tensor(mol)
             except Exception as e:
                 draw_mol_with_idx(mol)
                 print(e)
                 continue
 
             G.append(g)
-            D.append(d)
             R.append(r)
             if len(G) > BATCH_SIZE:
                 _X = sp.COO(np.stack(G[:BATCH_SIZE]))
-                _y = sp.COO(np.stack(D[:BATCH_SIZE]))
                 _z = sp.COO(np.stack(R[:BATCH_SIZE]))
-                _data = (_X, _y, _z)
+                _data = (_X, _z)
                 with open(dest_data_path + 'GDR_{}.pkl'.format(batch), 'wb') as f:
                     pickle.dump(_data, f)
 
-                mean = rs.mean()
-                stdev = rs.standard_deviation()
-                with open(dest_data_path + 'stats.pkl', 'wb') as f:
-                    pickle.dump(np.array([mean, stdev]), f)
                 G = G[BATCH_SIZE:]
-                D = D[BATCH_SIZE:]
                 R = R[BATCH_SIZE:]
                 batch += 1
                 if batch >= batch_num:
@@ -98,16 +85,10 @@ def get_and_save_data_batch(smiles_path, dest_data_path, batch_num=50000):
             break
     if G:
         _X = sp.COO(np.stack(G))
-        _y = sp.COO(np.stack(D))
         _z = sp.COO(np.stack(R))
-        _data = (_X, _y, _z)
+        _data = (_X, _z)
         with open(dest_data_path + 'GDR_{}.pkl'.format(batch), 'wb') as f:
             pickle.dump(_data, f)
-
-        mean = rs.mean()
-        stdev = rs.standard_deviation()
-        with open(dest_data_path + 'stats.pkl', 'wb') as f:
-            pickle.dump(np.array([mean, stdev]), f)
 
 
 if __name__ == "__main__":

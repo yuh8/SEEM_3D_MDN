@@ -5,11 +5,11 @@ import tensorflow as tf
 import tensorflow_probability as tfp
 from datetime import date
 from tensorflow import keras
-from tensorflow.keras import models, Model
+from tensorflow.keras import Model
 from multiprocessing import freeze_support
-from src.embed_utils import get_dist_core_model, get_r_core_model
-from src.misc_utils import create_folder, save_model_to_json, align_conf, tf_contriod
-from src.CONSTS import NUM_COMPS, TF_EPS, MAX_NUM_ATOMS, FEATURE_DEPTH
+from src.embed_utils import get_g_core_model, get_gr_core_model, get_decode_core_model
+from src.misc_utils import create_folder, align_conf, tf_contriod
+from src.CONSTS import MAX_NUM_ATOMS, FEATURE_DEPTH
 
 np.set_printoptions(threshold=np.inf)
 np.set_printoptions(linewidth=1000)
@@ -26,45 +26,19 @@ today = str(date.today())
 tfd = tfp.distributions
 
 
-def reparameterize(mean, logstd):
-    epsilon = tf.keras.backend.random_normal(shape=tf.shape(mean))
-    return mean + tf.exp(logstd) * epsilon
-
-
-def sample_dist(y_pred):
-    _, mean, log_std = tf.split(y_pred, 3, axis=-1)
-    dist_sample = reparameterize(mean, log_std)
-    dist_sample = tf.squeeze(dist_sample)
-    diag = tf.zeros((tf.shape(dist_sample)[0],
-                     tf.shape(dist_sample)[1]))
-    dist_sample = tf.linalg.set_diag(dist_sample, diag)
-    dist_sample = tf.expand_dims(dist_sample, axis=-1)
-    return dist_sample
+def get_mertcis():
+    kl = keras.metrics.Mean(name="kl_loss")
+    r_rmsd = keras.metrics.Mean(name="r_rmsd")
+    return kl, r_rmsd
 
 
 def core_model():
-    inputs = keras.layers.Input(shape=(MAX_NUM_ATOMS, MAX_NUM_ATOMS, FEATURE_DEPTH))
-    dist_pred = dist_net(inputs)
-    dist_sample = sample_dist(dist_pred)
-    r_pred = r_net(dist_sample)
-    return inputs, dist_pred, r_pred
-
-
-def loss_func_dist(y_true, y_pred):
-    # compute only for upper triangle
-    # y_true = tf.linalg.band_part(y_true, 0, -1)
-    comp_weight, mean, log_std = tf.split(y_pred, 3, axis=-1)
-    comp_weight = tf.nn.softmax(comp_weight, axis=-1)
-    dist = tfd.Normal(loc=mean, scale=tf.math.exp(log_std))
-    # [BATCH, MAX_NUM_ATOMS, MAX_NUM_ATOMS, NUM_COMPS]
-    _loss = comp_weight * dist.prob(y_true)
-    # [BATCH, MAX_NUM_ATOMS, MAX_NUM_ATOMS]
-    _loss = tf.reduce_sum(_loss, axis=-1)
-    _loss = tf.math.log(_loss + TF_EPS)
-    mask = tf.squeeze(tf.cast(y_true != 0, tf.float32))
-    _loss *= mask
-    loss = -tf.reduce_sum(_loss, axis=[1, 2])
-    return loss
+    inputs = keras.layers.Input(shape=(MAX_NUM_ATOMS, MAX_NUM_ATOMS, FEATURE_DEPTH + 4))
+    z_mean, z_log_var, z = gr_net(inputs)
+    h = g_net(inputs[..., :-4])
+    hz = tf.concat([h, z], axis=-1)
+    r_pred = dec_net(hz)
+    return inputs, z_mean, z_log_var, r_pred
 
 
 def loss_func_r(y_true, y_pred):
@@ -74,7 +48,7 @@ def loss_func_r(y_true, y_pred):
     Rot = tf.stop_gradient(tf.py_function(align_conf,
                                           inp=[y_pred, y_true, mask],
                                           Tout=tf.float32))
-    QC = tf.stop_gradient(tf_contriod(y_true, mask))
+    QC = tf_contriod(y_true, mask)
     y_pred_aligned = tf.matmul(y_pred, Rot) + QC
     y_pred_aligned *= mask
     total_row = tf.reduce_sum(mask, axis=1, keepdims=True)
@@ -86,26 +60,10 @@ def loss_func_r(y_true, y_pred):
     return loss
 
 
-def loss_func(y_true, y_pred):
-    dist_true, r_true = y_true
-    dist_pred, r_pred = y_pred
-    loss_dist = loss_func_dist(dist_true, dist_pred)
-    loss_r = loss_func_r(r_true, r_pred)
-    loss = loss_dist + 0.01 * loss_r
-    return loss
-
-
-def distance_rmse(d_true, d_pred):
-    comp_weight, mean, _ = tf.split(d_pred, 3, axis=-1)
-    comp_weight = tf.nn.softmax(comp_weight, axis=-1)
-    se = (mean - d_true)**2
-    se *= comp_weight
-    se = tf.reduce_sum(se, axis=-1)
-    mask = tf.squeeze(tf.cast(d_true != 0, tf.float32))
-    se *= mask
-    loss = tf.reduce_sum(se, axis=[1, 2]) / tf.reduce_sum(mask, axis=[1, 2])
-    loss = tf.math.sqrt(loss)
-    return loss
+def loss_func_kl(z_mean, z_logvar):
+    kl_loss = -0.5 * (1 + z_logvar - tf.square(z_mean) - tf.exp(z_logvar))
+    kl_loss = tf.reduce_sum(kl_loss, axis=1)
+    return kl_loss
 
 
 def distance_rmsd(r_true, r_pred):
@@ -156,31 +114,28 @@ def get_optimizer(finetune=False):
 
 
 def get_metrics():
-    dist_logden = tf.keras.metrics.Mean(name="dist_logden")
-    dist_rmse = tf.keras.metrics.Mean(name="dist_rmse")
-    r_rmsd = tf.keras.metrics.Mean(name="dist_rmse")
-    return dist_logden, dist_rmse, r_rmsd
+    kl = tf.keras.metrics.Mean(name="kl_loss")
+    r_rmsd = tf.keras.metrics.Mean(name="r_rmsd")
+    return kl, r_rmsd
 
 
 class Seem3D(Model):
-    def compile(self, optimizer, loss_fn, metrics):
+    def compile(self, optimizer, metrics):
         super(Seem3D, self).compile()
         self.optimizer = optimizer
-        self.loss_fn = loss_fn
-        self.dist_logden = metrics[0]
-        self.dist_rmse = metrics[1]
-        self.r_rmsd = metrics[2]
+        self.kl = metrics[0]
+        self.r_rmsd = metrics[1]
 
     def train_step(self, data):
         X = data[0]
-        dist_true = data[1][0]
-        r_true = data[1][1]
-        y_true = (dist_true, r_true)
+        r_true = data[1]
 
         # capture the scope of gradient
         with tf.GradientTape() as tape:
-            y_pred = self(X, training=True)
-            loss = self.loss_fn(y_true, y_pred)
+            z_mean, z_log_var, r_pred = self(X, training=True)
+            kl_loss = loss_func_kl(z_mean, z_log_var)
+            rec_loss = loss_func_r(r_true, r_pred)
+            loss = kl_loss + rec_loss
 
         # Compute gradients
         trainable_vars = self.trainable_variables
@@ -189,34 +144,27 @@ class Seem3D(Model):
         # Update weights
         self.optimizer.apply_gradients(zip(gradients, trainable_vars))
 
-        self.dist_logden.update_state(loss)
-        self.dist_rmse.update_state(distance_rmse(y_true[0], y_pred[0]))
-        self.r_rmsd.update_state(distance_rmsd(y_true[1], y_pred[1]))
-        return {"dist_logden": self.dist_logden.result(),
-                "dist_rmse": self.dist_rmse.result(),
+        self.kl.update_state(kl_loss)
+        self.r_rmsd.update_state(rec_loss)
+        return {"kl_loss": self.kl.result(),
                 "r_rmsd": self.r_rmsd.result()}
 
     def test_step(self, data):
         X = data[0]
-        dist_true = data[1][0]
-        r_true = data[1][1]
-        y_true = (dist_true, r_true)
-
-        # capture the scope of gradient
-        y_pred = self(X, training=True)
-        loss = self.loss_fn(y_true, y_pred)
-        self.dist_logden.update_state(loss)
-        self.dist_rmse.update_state(distance_rmse(y_true[0], y_pred[0]))
-        self.r_rmsd.update_state(distance_rmsd(y_true[1], y_pred[1]))
-        return {"dist_logden": self.dist_logden.result(),
-                "dist_rmse": self.dist_rmse.result(),
+        r_true = data[1]
+        z_mean, z_log_var, r_pred = self(X, training=False)
+        kl_loss = loss_func_kl(z_mean, z_log_var)
+        rec_loss = loss_func_r(r_true, r_pred)
+        self.kl.update_state(kl_loss)
+        self.r_rmsd.update_state(rec_loss)
+        return {"kl_loss": self.kl.result(),
                 "r_rmsd": self.r_rmsd.result()}
 
     @property
     def metrics(self):
         # We need to list our metrics here so the `reset_states()` can be
         # called automatically.
-        return [self.dist_logden, self.dist_rmse, self.r_rmsd]
+        return [self.kl, self.r_rmsd]
 
 
 def data_iterator(data_path):
@@ -230,17 +178,11 @@ def data_iterator(data_path):
                 GD = pickle.load(handle)
 
             G = GD[0].todense()
-            D = GD[1].todense()
-            R = GD[2].todense()
-            D -= d_mean
-            D /= d_std
-            mask = G.sum(-1) > 3
-            D *= mask
+            R = GD[1].todense()
 
             sample_nums = np.arange(G.shape[0])
             np.random.shuffle(sample_nums)
-            yield G[sample_nums, ...], (np.expand_dims(D[sample_nums, ...], axis=-1),
-                                        R[sample_nums, ...])
+            yield G[sample_nums, ...], R[sample_nums, ...]
 
 
 def data_iterator_test(data_path):
@@ -252,29 +194,21 @@ def data_iterator_test(data_path):
             GD = pickle.load(handle)
 
         G = GD[0].todense()
-        D = GD[1].todense()
-        R = GD[2].todense()
-        D -= d_mean
-        D /= d_std
-        mask = G.sum(-1) > 3
-        D *= mask
-        yield G, (np.expand_dims(D, axis=-1), R)
+        R = GD[1].todense()
+        yield G, R
 
 
 if __name__ == "__main__":
     freeze_support()
-    ckpt_path = 'checkpoints/generator_d_K_{}/'.format(NUM_COMPS)
+    ckpt_path = 'checkpoints/conVAE/'
     create_folder(ckpt_path)
-    create_folder("conf_model_d_K_{}".format(NUM_COMPS))
-    create_folder("dist_net")
-    create_folder("r_net")
+    create_folder("conVAE")
+    create_folder("dec_net")
+    create_folder("gr_net")
+    create_folder("g_net")
     train_path = 'D:/seem_3d_data/train_data/train_batch/'
     val_path = 'D:/seem_3d_data/test_data/val_batch/'
     test_path = 'D:/seem_3d_data/test_data/test_batch/'
-
-    f_name = train_path + 'stats.pkl'
-    with open(f_name, 'rb') as handle:
-        d_mean, d_std = pickle.load(handle)
 
     train_steps = len(glob.glob(train_path + 'GDR_*.pkl'))
     val_steps = len(glob.glob(val_path + 'GDR_*.pkl'))
@@ -282,37 +216,36 @@ if __name__ == "__main__":
     callbacks = [tf.keras.callbacks.ModelCheckpoint(ckpt_path,
                                                     save_freq=1000,
                                                     save_weights_only=True,
-                                                    monitor='dist_logden',
+                                                    monitor='r_rmsd',
                                                     mode='min',
                                                     save_best_only=True)]
-    dist_net = get_dist_core_model()
-    r_net = get_r_core_model()
+    g_net = get_g_core_model()
+    gr_net = get_gr_core_model()
+    dec_net = get_decode_core_model()
 
-    X, dist_pred, r_pred = core_model()
-
-    model = Seem3D(inputs=X, outputs=[dist_pred, r_pred])
-
-    model.compile(optimizer=get_optimizer(),
-                  loss_fn=loss_func, metrics=get_metrics())
-
-    save_model_to_json(model, "conf_model_d_K_{}/conf_model_d.json".format(NUM_COMPS))
-    model.summary()
+    X, z_mean, z_log_var, r_pred = core_model()
+    convae = Seem3D(inputs=X, outputs=[z_mean, z_log_var, r_pred])
+    optimizer = get_optimizer()
+    convae.compile(optimizer=get_optimizer(), metrics=get_metrics())
+    convae.summary()
+    breakpoint()
 
     try:
-        model.load_weights("./checkpoints/generator_d_K_1/")
+        convae.load_weights("./checkpoints/conVAE/")
     except:
         print('no exitsing model detected, training starts afresh')
         pass
 
-    model.fit(data_iterator(train_path),
-              epochs=40,
-              validation_data=data_iterator(val_path),
-              validation_steps=val_steps,
-              callbacks=callbacks,
-              steps_per_epoch=train_steps)
-    res = model.evaluate(data_iterator_test(test_path),
-                         return_dict=True)
+    convae.fit(data_iterator(train_path),
+               epochs=40,
+               validation_data=data_iterator(val_path),
+               validation_steps=val_steps,
+               callbacks=callbacks,
+               steps_per_epoch=train_steps)
+    res = convae.evaluate(data_iterator_test(test_path),
+                          return_dict=True)
 
     # save trained model in two ways
-    dist_net.save('dist_net/' + 'DistNet')
-    r_net.save('r_net/' + 'RNet')
+    g_net.save('g_net/' + 'GNet')
+    gr_net.save('gr_net/' + 'GRNet')
+    dec_net.save('dec_net/' + 'DecNet')
