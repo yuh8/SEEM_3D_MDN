@@ -15,7 +15,7 @@ RING_SIZES = range(3, 10)
 
 
 # Atom features
-MAX_NUM_ATOMS = 160
+MAX_NUM_ATOMS = 64
 ATOM_LIST = ['H', 'C', 'N', 'O', 'F', 'S', 'Cl', 'Br', 'P', 'I', 'Na', 'B', 'Si', 'Se', 'K', 'Bi']
 CHARGES = [-2, -1, 0, 1, 2, 3]
 
@@ -36,7 +36,7 @@ FEATURE_DEPTH = ATOM_TYPE_SIZE + CHARGE_TYPE_SIZE + CHIR_TYPE_SIZE +\
 
 
 # Mixture Gaussian
-NUM_COMPS = 1
+NUM_COMPS = 3
 OUTPUT_DEPTH = NUM_COMPS + NUM_COMPS * 2
 
 
@@ -44,4 +44,4 @@ OUTPUT_DEPTH = NUM_COMPS + NUM_COMPS * 2
 NUM_FILTERS = 128
 FILTER_SIZE = 3
 NUM_RES_BLOCKS = 20
-BATCH_SIZE = 32
+BATCH_SIZE = 80
