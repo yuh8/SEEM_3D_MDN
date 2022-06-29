@@ -95,7 +95,7 @@ class Seem3D(Model):
             z_mean, z_log_var, r_pred = self(X, training=True)
             kl_loss = loss_func_kl(z_mean, z_log_var)
             rec_loss = loss_func_r(r_true, r_pred)
-            loss = 0.001 * kl_loss + rec_loss
+            loss = 0.01 * kl_loss + rec_loss
 
         # Compute gradients
         trainable_vars = self.trainable_variables
@@ -197,7 +197,7 @@ if __name__ == "__main__":
         pass
 
     convae.fit(data_iterator(train_path),
-               epochs=100,
+               epochs=50,
                validation_data=data_iterator(val_path),
                validation_steps=val_steps,
                callbacks=callbacks,

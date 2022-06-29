@@ -40,7 +40,7 @@ def conv2d_block(input, num_filters, kernel_size=3, padding='SAME'):
                                    kernel_size=kernel_size,
                                    padding=padding)(input)
     x = tf.keras.layers.Activation("relu")(x)
-    x = tf.keras.layers.BatchNormalization()(x)
+    x = tf.keras.layers.LayerNormalization()(x)
 
     return x
 
@@ -80,7 +80,7 @@ def get_g_core_model():
     _, p8 = encoder_block(p7, 512)
 
     out = tf.keras.layers.GlobalMaxPooling2D()(p8)
-    out = tf.keras.layers.BatchNormalization()(out)
+    out = tf.keras.layers.LayerNormalization()(out)
     out = tf.keras.layers.Activation("relu")(out)
     hg = tf.keras.layers.Dense(HIDDEN_SIZE)(out)
     g_net = Model(inputs, hg, name="GNet")
@@ -102,7 +102,7 @@ def get_gr_core_model():
     _, p7 = encoder_block(p6, 512)
     _, p8 = encoder_block(p7, 512)
     out = tf.keras.layers.GlobalMaxPooling2D()(p8)
-    out = tf.keras.layers.BatchNormalization()(out)
+    out = tf.keras.layers.LayerNormalization()(out)
     out = tf.keras.layers.Activation("relu")(out)
     # z_mean, z_logstd
     z_mean = tf.keras.layers.Dense(HIDDEN_SIZE)(out)
@@ -115,10 +115,10 @@ def get_gr_core_model():
 def get_decode_core_model():
     inputs = keras.layers.Input(shape=(HIDDEN_SIZE * 2,))
     R = tf.keras.layers.Dense(HIDDEN_SIZE, use_bias=False)(inputs)
-    R = tf.keras.layers.BatchNormalization()(R)
+    R = tf.keras.layers.LayerNormalization()(R)
     R = tf.keras.layers.Activation("relu")(R)
     R = tf.keras.layers.Dense(HIDDEN_SIZE * 2, use_bias=False)(R)
-    R = tf.keras.layers.BatchNormalization()(R)
+    R = tf.keras.layers.LayerNormalization()(R)
     R = tf.keras.layers.Activation("relu")(R)
     R = tf.keras.layers.Dense(MAX_NUM_ATOMS * 3)(R)
     R = tf.reshape(R, [-1, MAX_NUM_ATOMS, 3])
