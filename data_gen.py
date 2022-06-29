@@ -32,7 +32,7 @@ def get_train_val_test_smiles():
     pickle_save(smiles_val, '/mnt/seem_3d_data/test_data/val_batch/smiles.pkl')
 
 
-def get_and_save_data_batch(smiles_path, dest_data_path, batch_num=50000):
+def get_and_save_data_batch(smiles_path, dest_data_path, batch_num=10000):
     rs = RunningStats()
     drugs_file = "/mnt/rdkit_folder/summary_drugs.json"
     with open(drugs_file, "r") as f:
@@ -60,7 +60,7 @@ def get_and_save_data_batch(smiles_path, dest_data_path, batch_num=50000):
             mol = mol_row.rd_mol
 
             try:
-                g, d, r = mol_to_tensor(mol)
+                g, d, _ = mol_to_tensor(mol)
                 # cacluate mean and std online for distance
                 con_map = g.sum(-1)
                 con_d = d[con_map > 3]
@@ -73,12 +73,11 @@ def get_and_save_data_batch(smiles_path, dest_data_path, batch_num=50000):
 
             G.append(g)
             D.append(d)
-            R.append(r)
             if len(G) > BATCH_SIZE:
                 _X = sp.COO(np.stack(G[:BATCH_SIZE]))
                 _y = sp.COO(np.stack(D[:BATCH_SIZE]))
                 _z = sp.COO(np.stack(R[:BATCH_SIZE]))
-                _data = (_X, _y, _z)
+                _data = (_X, _y)
                 with open(dest_data_path + 'GDR_{}.pkl'.format(batch), 'wb') as f:
                     pickle.dump(_data, f)
 
@@ -100,7 +99,7 @@ def get_and_save_data_batch(smiles_path, dest_data_path, batch_num=50000):
         _X = sp.COO(np.stack(G))
         _y = sp.COO(np.stack(D))
         _z = sp.COO(np.stack(R))
-        _data = (_X, _y, _z)
+        _data = (_X, _y)
         with open(dest_data_path + 'GDR_{}.pkl'.format(batch), 'wb') as f:
             pickle.dump(_data, f)
 
