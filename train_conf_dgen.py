@@ -106,7 +106,7 @@ def get_optimizer(finetune=False):
     if finetune:
         lr = 0.00001
     lr_fn = tf.keras.optimizers.schedules.PiecewiseConstantDecay(
-        [1000000, 2000000, 3000000], [lr, lr / 10, lr / 50, lr / 100],
+        [200000, 400000], [lr, lr / 10, lr / 50],
         name=None
     )
     opt_op = tf.keras.optimizers.Adam(learning_rate=lr_fn, global_clipnorm=0.5)
@@ -193,7 +193,7 @@ if __name__ == "__main__":
         pass
 
     model.fit(data_iterator(train_path),
-              epochs=40,
+              epochs=50,
               validation_data=data_iterator(val_path),
               validation_steps=val_steps,
               callbacks=callbacks,
