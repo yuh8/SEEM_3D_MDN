@@ -32,7 +32,7 @@ def get_train_val_test_smiles():
     pickle_save(smiles_val, '/mnt/seem_3d_data/test_data/val_batch/smiles.pkl')
 
 
-def get_and_save_data_batch(smiles_path, dest_data_path, batch_num=10000):
+def get_and_save_data_batch(smiles_path, dest_data_path, batch_num=1600):
     rs = RunningStats()
     drugs_file = "/mnt/rdkit_folder/summary_drugs.json"
     with open(drugs_file, "r") as f:
@@ -112,6 +112,6 @@ if __name__ == "__main__":
     get_and_save_data_batch('/mnt/seem_3d_data/train_data/train_batch/smiles.pkl',
                             '/mnt/seem_3d_data/train_data/train_batch/')
     get_and_save_data_batch('/mnt/seem_3d_data/test_data/val_batch/smiles.pkl',
-                            '/mnt/seem_3d_data/test_data/val_batch/', batch_num=5000)
+                            '/mnt/seem_3d_data/test_data/val_batch/', batch_num=100)
     get_and_save_data_batch('/mnt/seem_3d_data/test_data/test_batch/smiles.pkl',
-                            '/mnt/seem_3d_data/test_data/test_batch/', batch_num=10000)
+                            '/mnt/seem_3d_data/test_data/test_batch/', batch_num=200)
