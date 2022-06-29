@@ -109,7 +109,7 @@ def get_optimizer(finetune=False):
         [200000, 400000], [lr, lr / 10, lr / 50],
         name=None
     )
-    opt_op = tf.keras.optimizers.Adam(learning_rate=lr_fn, global_clipnorm=0.5)
+    opt_op = tf.keras.optimizers.Adam(learning_rate=lr_fn)
     return opt_op
 
 
