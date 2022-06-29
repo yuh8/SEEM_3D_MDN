@@ -157,9 +157,9 @@ if __name__ == "__main__":
     ckpt_path = 'checkpoints/generator_d_K_{}/'.format(NUM_COMPS)
     create_folder(ckpt_path)
     create_folder("conf_model_d_K_{}".format(NUM_COMPS))
-    train_path = 'D:/seem_3d_data/train_data/train_batch/'
-    val_path = 'D:/seem_3d_data/test_data/val_batch/'
-    test_path = 'D:/seem_3d_data/test_data/test_batch/'
+    train_path = '/mnt/seem_3d_data/train_data/train_batch/'
+    val_path = '/mnt/seem_3d_data/test_data/val_batch/'
+    test_path = '/mnt/seem_3d_data/test_data/test_batch/'
 
     f_name = train_path + 'stats.pkl'
     with open(f_name, 'rb') as handle:
