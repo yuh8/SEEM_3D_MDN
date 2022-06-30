@@ -58,13 +58,10 @@ def get_prediction(mol):
     mol_origin = deepcopy(mol)
     g, _, _ = mol_to_tensor(mol_origin)
     g = np.expand_dims(g, axis=0)
-    mask = np.sum(g, axis=-1, keepdims=True) > 3
     # [1, MAX_NUM_ATOMS, MAX_NUM_ATOMS, 9]
     d_pred = model(g, training=False).numpy()[0]
     split_pred = np.split(d_pred, 3, axis=-1)
     alpha, d_pred_mean, d_pred_std = split_pred[0], split_pred[1], split_pred[2]
-    d_pred_mean *= mask
-    d_pred_std *= mask
     return alpha, d_pred_mean, d_pred_std
 
 
