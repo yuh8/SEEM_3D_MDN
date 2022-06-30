@@ -37,19 +37,21 @@ def core_model():
     s3, p3 = encoder_block(p2, 128, pool=False)
     s4, p4 = encoder_block(p3, 128)
     s5, p5 = encoder_block(p4, 256, pool=False)
-    s6, p6 = encoder_block(p5, 384)
+    s6, p6 = encoder_block(p5, 256)
+    s7, p7 = encoder_block(p6, 512)
 
-    b1 = conv2d_block(p6, 512)
+    b1 = conv2d_block(p7, 1024)
 
-    d1 = decoder_block(b1, s6, 384)
-    d2 = decoder_block(d1, s5, 256, unpool=False)
-    d3 = decoder_block(d2, s4, 128)
-    d4 = decoder_block(d3, s3, 128, unpool=False)
-    d5 = decoder_block(d4, s2, 64)
-    d6 = decoder_block(d5, s1, 64, unpool=False)
+    d1 = decoder_block(b1, s7, 512)
+    d2 = decoder_block(d1, s6, 256)
+    d3 = decoder_block(d2, s5, 256, unpool=False)
+    d4 = decoder_block(d3, s4, 128)
+    d5 = decoder_block(d4, s3, 128, unpool=False)
+    d6 = decoder_block(d5, s2, 64)
+    d7 = decoder_block(d6, s1, 64, unpool=False)
 
     # Add a per-pixel classification layer
-    logits = layers.Conv2D(OUTPUT_DEPTH, 1, activation=None, padding="same", use_bias=False)(d6)
+    logits = layers.Conv2D(OUTPUT_DEPTH, 1, activation=None, padding="same", use_bias=False)(d7)
     return inputs, logits
 
 
