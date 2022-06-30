@@ -38,11 +38,11 @@ def core_model():
     s4, p4 = encoder_block(p3, 128)
     s5, p5 = encoder_block(p4, 256, pool=False)
     s6, p6 = encoder_block(p5, 256)
-    s7, p7 = encoder_block(p6, 512)
+    s7, p7 = encoder_block(p6, 384)
 
-    b1 = conv2d_block(p7, 1024)
+    b1 = conv2d_block(p7, 512)
 
-    d1 = decoder_block(b1, s7, 512)
+    d1 = decoder_block(b1, s7, 384)
     d2 = decoder_block(d1, s6, 256)
     d3 = decoder_block(d2, s5, 256, unpool=False)
     d4 = decoder_block(d3, s4, 128)
@@ -104,14 +104,14 @@ class CustomSchedule(tf.keras.optimizers.schedules.LearningRateSchedule):
 
 
 def get_optimizer(finetune=False):
-    lr = 0.0002
+    lr = 0.0001
     if finetune:
         lr = 0.00001
     lr_fn = tf.keras.optimizers.schedules.PiecewiseConstantDecay(
         [40000, 80000, 120000], [lr, lr / 2, lr / 4, lr / 10],
         name=None
     )
-    opt_op = tf.keras.optimizers.Adam(learning_rate=lr_fn)
+    opt_op = tf.keras.optimizers.Adam(learning_rate=lr_fn, clipnorm=0.5)
     return opt_op
 
 
@@ -127,8 +127,8 @@ def data_iterator(data_path):
 
             G = GD[0].todense()
             D = GD[1].todense()
-            D -= d_mean
-            D /= d_std
+            # D -= d_mean
+            # D /= d_std
             mask = G.sum(-1) > 3
             D *= mask
 
@@ -147,8 +147,8 @@ def data_iterator_test(data_path):
 
         G = GD[0].todense()
         D = GD[1].todense()
-        D -= d_mean
-        D /= d_std
+        # D -= d_mean
+        # D /= d_std
         mask = G.sum(-1) > 3
         D *= mask
         yield G, np.expand_dims(D, axis=-1)

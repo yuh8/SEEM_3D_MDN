@@ -32,8 +32,8 @@ def sample_bound_matrix(alpha, d_pred_mean, d_pred_std, num_atoms):
             alpha_idx = np.argmax(np.random.multinomial(1, alpha_ij))
             _mean = d_pred_mean[i, j, alpha_idx]
             _std = d_pred_std[i, j, alpha_idx]
-            bound_matrix[i, j] = _mean + _std
-            bound_matrix[j, i] = np.maximum(_mean - _std, MIN_DISTANCE)
+            bound_matrix[i, j] = _mean + np.exp(_std)
+            bound_matrix[j, i] = np.maximum(_mean - np.exp(_std), MIN_DISTANCE)
 
     return bound_matrix
 

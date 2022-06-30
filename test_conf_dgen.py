@@ -99,7 +99,7 @@ def compute_cov_mat(smiles_path):
         mol_pred.RemoveAllConformers()
         num_atoms = mol_pred.GetNumAtoms()
 
-        for _ in num_gens:
+        for _ in range(num_gens):
             bounds_matrix = sample_bound_matrix(alpha, d_pred_mean, d_pred_std, num_atoms)
             embed_conf(mol_pred, bounds_matrix, seed=43)
 
