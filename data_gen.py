@@ -71,7 +71,7 @@ def get_and_save_data_batch(smiles_path, dest_data_path, batch_num=200000):
                 print(e)
                 continue
             
-            np.savez_compressed(dest_data_path + f'GDR_{batch}', G=g, d=d)
+            np.savez_compressed(dest_data_path + f'GD_{batch}', G=g, d=d)
             if batch % 100 == 0:
                 mean = rs.mean()
                 stdev = rs.standard_deviation()
