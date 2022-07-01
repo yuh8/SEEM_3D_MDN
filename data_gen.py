@@ -32,7 +32,7 @@ def get_train_val_test_smiles():
     pickle_save(smiles_val, '/mnt/seem_3d_data/test_data/val_batch/smiles.pkl')
 
 
-def get_and_save_data_batch(smiles_path, dest_data_path, batch_num=1600):
+def get_and_save_data_batch(smiles_path, dest_data_path, batch_num=200000):
     rs = RunningStats()
     drugs_file = "/mnt/rdkit_folder/summary_drugs.json"
     with open(drugs_file, "r") as f:
@@ -70,41 +70,23 @@ def get_and_save_data_batch(smiles_path, dest_data_path, batch_num=1600):
                 draw_mol_with_idx(mol)
                 print(e)
                 continue
-
-            G.append(g)
-            D.append(d)
-            if len(G) > BATCH_SIZE:
-                _X = sp.COO(np.stack(G[:BATCH_SIZE]))
-                _y = sp.COO(np.stack(D[:BATCH_SIZE]))
-                _data = (_X, _y)
-                with open(dest_data_path + 'GDR_{}.pkl'.format(batch), 'wb') as f:
-                    pickle.dump(_data, f)
-
+            
+            np.savez_compressed(dest_data_path + f'GDR_{batch}', G=g, d=d)
+            if batch % 100 == 0:
                 mean = rs.mean()
                 stdev = rs.standard_deviation()
                 with open(dest_data_path + 'stats.pkl', 'wb') as f:
                     pickle.dump(np.array([mean, stdev]), f)
-                G = G[BATCH_SIZE:]
-                D = D[BATCH_SIZE:]
-                R = R[BATCH_SIZE:]
-                batch += 1
-                if batch >= batch_num:
-                    break
-            if batch >= batch_num:
+            batch += 1
+            if batch == batch_num:
                 break
-        if batch >= batch_num:
-            break
-    if G:
-        _X = sp.COO(np.stack(G))
-        _y = sp.COO(np.stack(D))
-        _data = (_X, _y)
-        with open(dest_data_path + 'GDR_{}.pkl'.format(batch), 'wb') as f:
-            pickle.dump(_data, f)
-
-        mean = rs.mean()
-        stdev = rs.standard_deviation()
-        with open(dest_data_path + 'stats.pkl', 'wb') as f:
-            pickle.dump(np.array([mean, stdev]), f)
+        else:
+            continue
+        break
+    mean = rs.mean()
+    stdev = rs.standard_deviation()
+    with open(dest_data_path + 'stats.pkl', 'wb') as f:
+        pickle.dump(np.array([mean, stdev]), f)
 
 
 if __name__ == "__main__":
@@ -112,6 +94,6 @@ if __name__ == "__main__":
     get_and_save_data_batch('/mnt/seem_3d_data/train_data/train_batch/smiles.pkl',
                             '/mnt/seem_3d_data/train_data/train_batch/')
     get_and_save_data_batch('/mnt/seem_3d_data/test_data/val_batch/smiles.pkl',
-                            '/mnt/seem_3d_data/test_data/val_batch/', batch_num=100)
+                            '/mnt/seem_3d_data/test_data/val_batch/', batch_num=2500)
     get_and_save_data_batch('/mnt/seem_3d_data/test_data/test_batch/smiles.pkl',
-                            '/mnt/seem_3d_data/test_data/test_batch/', batch_num=200)
+                            '/mnt/seem_3d_data/test_data/test_batch/', batch_num=25000)

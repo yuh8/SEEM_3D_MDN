@@ -3,7 +3,7 @@ from rdkit import Chem
 TF_EPS = tf.keras.backend.epsilon()
 
 # data gen
-NUM_CONFS_PER_MOL = 200
+NUM_CONFS_PER_MOL = 5
 
 # Bound features {Type:4, Stereo: 6}
 BOND_DICT = Chem.rdchem.BondType.values
@@ -36,7 +36,7 @@ FEATURE_DEPTH = ATOM_TYPE_SIZE + CHARGE_TYPE_SIZE + CHIR_TYPE_SIZE +\
 
 
 # Mixture Gaussian
-NUM_COMPS = 3
+NUM_COMPS = 1
 OUTPUT_DEPTH = NUM_COMPS + NUM_COMPS * 2
 
 

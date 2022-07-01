@@ -127,8 +127,8 @@ def data_iterator(data_path):
 
             G = GD[0].todense()
             D = GD[1].todense()
-            # D -= d_mean
-            # D /= d_std
+            D -= d_mean
+            D /= d_std
             mask = G.sum(-1) > 3
             D *= mask
 
@@ -147,8 +147,8 @@ def data_iterator_test(data_path):
 
         G = GD[0].todense()
         D = GD[1].todense()
-        # D -= d_mean
-        # D /= d_std
+        D -= d_mean
+        D /= d_std
         mask = G.sum(-1) > 3
         D *= mask
         yield G, np.expand_dims(D, axis=-1)

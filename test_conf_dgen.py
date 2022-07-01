@@ -74,6 +74,7 @@ def compute_cov_mat(smiles_path):
     shuffle(smiles)
     covs = []
     mats = []
+    breakpoint()
     for smi in smiles[:200]:
         try:
             mol_path = "/mnt/rdkit_folder/" + drugs_summ[smi]['pickle_path']
@@ -100,7 +101,7 @@ def compute_cov_mat(smiles_path):
         num_atoms = mol_pred.GetNumAtoms()
 
         for _ in range(num_gens):
-            bounds_matrix = sample_bound_matrix(alpha, d_pred_mean, d_pred_std, num_atoms)
+            bounds_matrix = sample_bound_matrix(alpha, d_pred_mean, d_pred_std, d_mean, d_std, num_atoms)
             embed_conf(mol_pred, bounds_matrix, seed=43)
 
         num_gens = mol_pred.GetNumConformers()
