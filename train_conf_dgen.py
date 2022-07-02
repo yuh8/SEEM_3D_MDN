@@ -9,7 +9,7 @@ from tensorflow.keras import layers, models
 from multiprocessing import freeze_support
 from src.embed_utils import encoder_block, decoder_block, conv2d_block
 from src.misc_utils import create_folder, save_model_to_json
-from src.CONSTS import (MAX_NUM_ATOMS, FEATURE_DEPTH, NUM_COMPS, OUTPUT_DEPTH, TF_EPS)
+from src.CONSTS import (MAX_NUM_ATOMS, FEATURE_DEPTH, NUM_COMPS, OUTPUT_DEPTH, TF_EPS, BATCH_SIZE)
 
 np.set_printoptions(threshold=np.inf)
 np.set_printoptions(linewidth=1000)
@@ -115,44 +115,57 @@ def get_optimizer(finetune=False):
     return opt_op
 
 
-def data_iterator(data_path):
-    num_files = len(glob.glob(data_path + 'GDR_*.pkl'))
+def data_iterator_train():
+    num_files = len(glob.glob(train_path + 'GD_*.npz'))
     batch_nums = np.arange(num_files)
     while True:
         np.random.shuffle(batch_nums)
         for batch in batch_nums:
-            f_name = data_path + 'GDR_{}.pkl'.format(batch)
-            with open(f_name, 'rb') as handle:
-                GD = pickle.load(handle)
-
-            G = GD[0].todense()
-            D = GD[1].todense()
+            f_name = train_path + f'GD_{batch}.npz'
+            GD = np.load(f_name)
+            G = GD['G']
+            D = GD['d']
             D -= d_mean
             D /= d_std
             mask = G.sum(-1) > 3
             D *= mask
+            yield G, np.expand_dims(D, axis=-1)
 
-            sample_nums = np.arange(G.shape[0])
-            np.random.shuffle(sample_nums)
-            yield G[sample_nums, ...], np.expand_dims(D[sample_nums, ...], axis=-1)
+def data_iterator_val():
+    num_files = len(glob.glob(val_path + 'GD_*.npz'))
+    batch_nums = np.arange(num_files)
+    while True:
+        np.random.shuffle(batch_nums)
+        for batch in batch_nums:
+            f_name = val_path + f'GD_{batch}.npz'
+            GD = np.load(f_name)
+            G = GD['G']
+            D = GD['d']
+            D -= d_mean
+            D /= d_std
+            mask = G.sum(-1) > 3
+            D *= mask
+            yield G, np.expand_dims(D, axis=-1)
 
 
-def data_iterator_test(data_path):
-    num_files = len(glob.glob(data_path + 'GDR_*.pkl'))
+def data_iterator_test():
+    num_files = len(glob.glob(test_path + 'GD_*.npz'))
     batch_nums = np.arange(num_files)
     for batch in batch_nums:
-        f_name = data_path + 'GDR_{}.pkl'.format(batch)
-        with open(f_name, 'rb') as handle:
-            GD = pickle.load(handle)
-
-        G = GD[0].todense()
-        D = GD[1].todense()
+        f_name = test_path + f'GD_{batch}.npz'
+        GD = np.load(f_name)
+        G = GD['G']
+        D = GD['d']
         D -= d_mean
         D /= d_std
         mask = G.sum(-1) > 3
         D *= mask
         yield G, np.expand_dims(D, axis=-1)
 
+def _fixup_shape(x, y):
+    x.set_shape([None, MAX_NUM_ATOMS, MAX_NUM_ATOMS, FEATURE_DEPTH])
+    y.set_shape([None, MAX_NUM_ATOMS, MAX_NUM_ATOMS, 1])
+    return x, y
 
 if __name__ == "__main__":
     freeze_support()
@@ -167,8 +180,8 @@ if __name__ == "__main__":
     with open(f_name, 'rb') as handle:
         d_mean, d_std = pickle.load(handle)
 
-    train_steps = len(glob.glob(train_path + 'GDR_*.pkl'))
-    val_steps = len(glob.glob(val_path + 'GDR_*.pkl'))
+    train_steps = len(glob.glob(train_path + 'GD_*.npz')) // BATCH_SIZE
+    val_steps = len(glob.glob(val_path + 'GD_*.npz')) // BATCH_SIZE
 
     callbacks = [tf.keras.callbacks.ModelCheckpoint(ckpt_path,
                                                     save_freq=1000,
@@ -194,13 +207,41 @@ if __name__ == "__main__":
         print('no exitsing model detected, training starts afresh')
         pass
 
-    model.fit(data_iterator(train_path),
+    
+    train_dataset = tf.data.Dataset.from_generator(
+        data_iterator_train,
+        output_types=(tf.float32, tf.float32),
+        output_shapes=((MAX_NUM_ATOMS, MAX_NUM_ATOMS, FEATURE_DEPTH), 
+                       (MAX_NUM_ATOMS, MAX_NUM_ATOMS, 1)))
+    
+    train_dataset = train_dataset.shuffle(buffer_size=1000, seed=0, 
+                                          reshuffle_each_iteration=True)
+    train_dataset = train_dataset.batch(BATCH_SIZE, drop_remainder=True).map(_fixup_shape)
+    train_dataset = train_dataset.prefetch(tf.data.experimental.AUTOTUNE)
+    
+    val_dataset = tf.data.Dataset.from_generator(
+        data_iterator_val,
+        output_types=(tf.float32, tf.float32),
+        output_shapes=((MAX_NUM_ATOMS, MAX_NUM_ATOMS, FEATURE_DEPTH), 
+                       (MAX_NUM_ATOMS, MAX_NUM_ATOMS, 1)))
+    val_dataset = val_dataset.batch(16, drop_remainder=True).map(_fixup_shape)
+    val_dataset = val_dataset.prefetch(tf.data.experimental.AUTOTUNE)
+    
+    test_dataset = tf.data.Dataset.from_generator(
+        data_iterator_test,
+        output_types=(tf.float32, tf.float32),
+        output_shapes=((MAX_NUM_ATOMS, MAX_NUM_ATOMS, FEATURE_DEPTH), 
+                       (MAX_NUM_ATOMS, MAX_NUM_ATOMS, 1)))
+    test_dataset = test_dataset.batch(16, drop_remainder=True).map(_fixup_shape)
+    test_dataset = test_dataset.prefetch(tf.data.experimental.AUTOTUNE)
+
+    model.fit(train_dataset,
               epochs=100,
-              validation_data=data_iterator(val_path),
+              validation_data=val_dataset,
               validation_steps=val_steps,
               callbacks=callbacks,
               steps_per_epoch=train_steps)
-    res = model.evaluate(data_iterator_test(test_path),
+    res = model.evaluate(test_dataset,
                          return_dict=True)
 
     # save trained model in two ways
