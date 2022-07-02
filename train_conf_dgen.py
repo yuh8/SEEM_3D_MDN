@@ -1,4 +1,5 @@
 import glob
+import math
 import pickle
 import numpy as np
 import tensorflow as tf
@@ -9,7 +10,7 @@ from tensorflow.keras import layers, models
 from multiprocessing import freeze_support
 from src.embed_utils import encoder_block, decoder_block, conv2d_block
 from src.misc_utils import create_folder, save_model_to_json
-from src.CONSTS import (MAX_NUM_ATOMS, FEATURE_DEPTH, NUM_COMPS, OUTPUT_DEPTH, TF_EPS, BATCH_SIZE)
+from src.CONSTS import (MAX_NUM_ATOMS, FEATURE_DEPTH, NUM_COMPS, OUTPUT_DEPTH, TF_EPS, BATCH_SIZE, VAL_BATCH_SIZE)
 
 np.set_printoptions(threshold=np.inf)
 np.set_printoptions(linewidth=1000)
@@ -87,31 +88,26 @@ def distance_rmse(y_true, y_pred):
     return loss
 
 
-class CustomSchedule(tf.keras.optimizers.schedules.LearningRateSchedule):
-    def __init__(self, d_model, warmup_steps=4000):
-        super(CustomSchedule, self).__init__()
-
-        self.d_model = d_model
-        self.d_model = tf.cast(self.d_model, tf.float32)
-
+class WarmCosine(tf.keras.optimizers.schedules.LearningRateSchedule):
+    def __init__(self, initial_lr=1e-6, max_lr=2e-4, warmup_steps=4000, decay_steps=16000):
+        super(WarmCosine, self).__init__()
+        self.initial_lr = initial_lr
+        self.max_lr = max_lr
+        self.decay_steps = decay_steps
         self.warmup_steps = warmup_steps
 
     def __call__(self, step):
-        arg1 = tf.math.rsqrt(step)
-        arg2 = step * (self.warmup_steps ** -1.5)
+        phase_1 = step * (self.max_lr - self.initial_lr) / self.warmup_steps + self.initial_lr
+        step_tmp = step - self.warmup_steps
+        cosine_decay = 0.5 * (1 + tf.math.cos(math.pi * step_tmp / self.decay_steps))
+        phase_2 = self.initial_lr + (self.max_lr - self.initial_lr) * cosine_decay
+        is_phase_1 = tf.cast(step < self.warmup_steps, tf.float32)
+        lr = phase_1 * is_phase_1 + phase_2 * (1 - is_phase_1)
+        return lr
 
-        return tf.math.rsqrt(self.d_model) * tf.math.minimum(arg1, arg2)
 
-
-def get_optimizer(finetune=False):
-    lr = 0.0001
-    if finetune:
-        lr = 0.00001
-    lr_fn = tf.keras.optimizers.schedules.PiecewiseConstantDecay(
-        [40000, 80000, 120000], [lr, lr / 2, lr / 4, lr / 10],
-        name=None
-    )
-    opt_op = tf.keras.optimizers.Adam(learning_rate=lr_fn, clipnorm=0.5)
+def get_optimizer():
+    opt_op = tf.keras.optimizers.Adam(learning_rate=WarmCosine(), clipnorm=0.5)
     return opt_op
 
 
@@ -181,7 +177,7 @@ if __name__ == "__main__":
         d_mean, d_std = pickle.load(handle)
 
     train_steps = len(glob.glob(train_path + 'GD_*.npz')) // BATCH_SIZE
-    val_steps = len(glob.glob(val_path + 'GD_*.npz')) // BATCH_SIZE
+    val_steps = len(glob.glob(val_path + 'GD_*.npz')) // VAL_BATCH_SIZE
 
     callbacks = [tf.keras.callbacks.ModelCheckpoint(ckpt_path,
                                                     save_freq=1000,
@@ -224,7 +220,7 @@ if __name__ == "__main__":
         output_types=(tf.float32, tf.float32),
         output_shapes=((MAX_NUM_ATOMS, MAX_NUM_ATOMS, FEATURE_DEPTH), 
                        (MAX_NUM_ATOMS, MAX_NUM_ATOMS, 1)))
-    val_dataset = val_dataset.batch(16, drop_remainder=True).map(_fixup_shape)
+    val_dataset = val_dataset.batch(VAL_BATCH_SIZE, drop_remainder=True).map(_fixup_shape)
     val_dataset = val_dataset.prefetch(tf.data.experimental.AUTOTUNE)
     
     test_dataset = tf.data.Dataset.from_generator(
@@ -232,7 +228,7 @@ if __name__ == "__main__":
         output_types=(tf.float32, tf.float32),
         output_shapes=((MAX_NUM_ATOMS, MAX_NUM_ATOMS, FEATURE_DEPTH), 
                        (MAX_NUM_ATOMS, MAX_NUM_ATOMS, 1)))
-    test_dataset = test_dataset.batch(16, drop_remainder=True).map(_fixup_shape)
+    test_dataset = test_dataset.batch(VAL_BATCH_SIZE, drop_remainder=True).map(_fixup_shape)
     test_dataset = test_dataset.prefetch(tf.data.experimental.AUTOTUNE)
 
     model.fit(train_dataset,

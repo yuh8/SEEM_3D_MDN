@@ -1,6 +1,7 @@
 import os
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
 import tensorflow as tf
+from tensorflow.keras import regularizers
 
 gpus = tf.config.experimental.list_physical_devices('GPU')
 if gpus:
@@ -14,12 +15,15 @@ if gpus:
 def bottleneck(input, num_filters, kernel_size=3, padding='SAME'):
     x = tf.keras.layers.Conv2D(num_filters // 4,
                                kernel_size=1,
+                               kernel_regularizer=regularizers.L2(1e-4),
                                padding=padding)(input)
     x = tf.keras.layers.Conv2D(num_filters // 4,
                                kernel_size=kernel_size,
+                               kernel_regularizer=regularizers.L2(1e-4),
                                padding=padding)(x)
     x = tf.keras.layers.Conv2D(num_filters,
                                kernel_size=1,
+                               kernel_regularizer=regularizers.L2(1e-4),
                                padding=padding)(x)
     return x
 
@@ -30,6 +34,8 @@ def conv2d_block(input, num_filters, kernel_size=3, padding='SAME'):
     else:
         x = tf.keras.layers.Conv2D(num_filters,
                                    kernel_size=kernel_size,
+                                   kernel_regularizer=regularizers.L2(1e-4),
+                                   use_bias=False,
                                    padding=padding)(input)
     x = tf.keras.layers.Activation("relu")(x)
     x = tf.keras.layers.LayerNormalization()(x)
@@ -39,6 +45,8 @@ def conv2d_block(input, num_filters, kernel_size=3, padding='SAME'):
     else:
         x = tf.keras.layers.Conv2D(num_filters,
                                    kernel_size=kernel_size,
+                                   kernel_regularizer=regularizers.L2(1e-4),
+                                   use_bias=False,
                                    padding=padding)(x)
     x = tf.keras.layers.Activation("relu")(x)
     x = tf.keras.layers.LayerNormalization()(x)
@@ -58,7 +66,9 @@ def encoder_block(X, num_filters, pool=True):
 
 def decoder_block(X, skip_features, num_filters, unpool=True):
     if unpool:
-        X = tf.keras.layers.Conv2DTranspose(num_filters, (2, 2), strides=2, padding="same")(X)
+        X = tf.keras.layers.Conv2DTranspose(num_filters, (2, 2), strides=2, padding="same", 
+                                            kernel_regularizer=regularizers.L2(1e-4),
+                                            use_bias=False)(X)
     X = tf.keras.layers.Concatenate()([X, skip_features])
     X = conv2d_block(X, num_filters)
     return X
