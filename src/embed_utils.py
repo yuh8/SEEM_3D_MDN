@@ -1,126 +1,198 @@
-import os
-os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
 import tensorflow as tf
-from tensorflow import keras
 from tensorflow.keras import Model
-from .CONSTS import (MAX_NUM_ATOMS, FEATURE_DEPTH, HIDDEN_SIZE)
-
-gpus = tf.config.experimental.list_physical_devices('GPU')
-if gpus:
-    try:
-        for gpu in gpus:
-            tf.config.experimental.set_memory_growth(gpu, True)
-    except RuntimeError as e:
-        print(e)
+from .CONSTS import DFF, MAX_NUM_ATOMS, FEATURE_DEPTH, HIDDEN_SIZE, NUM_HEADS, NUM_LAYERS
 
 
-def reparameterize(mean, logvar):
-    epsilon = tf.keras.backend.random_normal(shape=tf.shape(mean))
-    return mean + tf.exp(0.5 * logvar) * epsilon
+class GraphEmbed(tf.keras.layers.Layer):
+    def __init__(self, d_model, rate=0.1):
+        super(GraphEmbed, self).__init__()
+        self.d_model = d_model
+        self.pad = tf.keras.layers.ZeroPadding2D(padding=[0, 1])
+        self.dropout = tf.keras.layers.Dropout(rate)
+
+    def build(self, input_shape):
+        self.kernel_size = [input_shape[1], 3]
+        self.embed = tf.keras.layers.Conv2D(self.d_model,
+                                            kernel_size=self.kernel_size,
+                                            padding='valid')
+
+    def call(self, x, training):
+        '''
+        x: [batch_size, num_atoms, num_atoms, feature_depth]
+        '''
+        # [..., num_atoms, num_atoms + 2, feature_depth]
+        x = self.pad(x)
+        # [batch_size, num_atoms, d_model]
+        x = tf.squeeze(self.embed(x))
+        x = self.dropout(x, training)
+        return x
 
 
-def bottleneck(input, num_filters, kernel_size=3, padding='SAME'):
-    x = tf.keras.layers.Conv2D(num_filters // 4,
-                               kernel_size=1,
-                               padding=padding)(input)
-    x = tf.keras.layers.Conv2D(num_filters // 4,
-                               kernel_size=kernel_size,
-                               padding=padding)(x)
-    x = tf.keras.layers.Conv2D(num_filters,
-                               kernel_size=1,
-                               padding=padding)(x)
-    return x
+def point_wise_feed_forward_network(d_model, dff):
+    return tf.keras.Sequential([
+        tf.keras.layers.Dense(dff, activation='relu'),  # (batch_size, num_atoms, dff)
+        tf.keras.layers.Dense(d_model)  # (batch_size, num_atoms, d_model)
+    ])
 
 
-def conv2d_block(input, num_filters, kernel_size=3, padding='SAME'):
-    if num_filters >= 256:
-        x = bottleneck(input, num_filters)
-    else:
-        x = tf.keras.layers.Conv2D(num_filters,
-                                   kernel_size=kernel_size,
-                                   padding=padding)(input)
-    x = tf.keras.layers.Activation("relu")(x)
-    x = tf.keras.layers.LayerNormalization()(x)
+def scaled_dot_product_attention(q, k, v, mask):
+    """Calculate the attention weights.
 
-    return x
+    Args:
+      q: query shape == (..., num_atoms, dk)
+      k: key shape == (..., num_atoms, dk)
+      v: value shape == (..., num_atoms, dk)
+      mask: Float tensor with shape (batch_size, 1, num_atoms) broadcastable
+            to (..., num_atoms, num_atoms). Defaults to None
 
 
-def encoder_block(X, num_filters, pool=True):
-    X = conv2d_block(X, num_filters)
-    X = conv2d_block(X, num_filters // 2)
-    X = conv2d_block(X, num_filters)
-    if pool:
-        p = tf.keras.layers.MaxPool2D(2, 2)(X)
-    else:
-        p = X
-    return X, p
+    Returns:
+      output, attention_weights
+    """
+
+    matmul_qk = tf.matmul(q, k, transpose_b=True)  # (..., num_atoms, num_atoms)
+
+    # scale matmul_qk
+    dk = tf.cast(tf.shape(k)[-1], tf.float32)
+    scaled_attention_logits = matmul_qk / tf.math.sqrt(dk)
+
+    # add the mask to the scaled tensor.
+    if mask is not None:
+        scaled_attention_logits += (mask * -1e9)
+
+    # softmax is normalized on the last axis (num_atoms) so that the scores
+    # add up to 1.
+    attention_weights = tf.nn.softmax(scaled_attention_logits, axis=-1)  # (..., num_atoms, num_atoms)
+
+    output = tf.matmul(attention_weights, v)  # (..., num_atoms, dk)
+
+    return output, attention_weights
 
 
-def decoder_block(X, skip_features, num_filters, unpool=True):
-    if unpool:
-        X = tf.keras.layers.Conv2DTranspose(num_filters, (2, 2), strides=2, padding="same")(X)
-    X = tf.keras.layers.Concatenate()([X, skip_features])
-    X = conv2d_block(X, num_filters)
-    return X
+class Sampling(tf.keras.layers.Layer):
+    """Uses (z_mean, z_log_var) to sample z, the vector encoding a digit."""
+
+    def call(self, inputs):
+        z_mean, z_log_var = inputs
+        epsilon = tf.keras.backend.random_normal(shape=tf.shape(z_mean))
+        return z_mean + tf.exp(0.5 * z_log_var) * epsilon
 
 
-def get_g_core_model():
-    '''
-    mini resnet
-    '''
-    # [BATCH, MAX_NUM_ATOMS, MAX_NUM_ATOMS, FEATURE_DEPTH]
-    inputs = keras.layers.Input(shape=(MAX_NUM_ATOMS, MAX_NUM_ATOMS, FEATURE_DEPTH))
-    _, p1 = encoder_block(inputs, 64, pool=False)
-    _, p2 = encoder_block(p1, 64)
-    _, p3 = encoder_block(p2, 128, pool=False)
-    _, p4 = encoder_block(p3, 128)
-    _, p5 = encoder_block(p4, 256, pool=False)
-    _, p6 = encoder_block(p5, 256)
-    _, p7 = encoder_block(p6, 512)
-    _, p8 = encoder_block(p7, 512)
+class MultiHeadAttention(tf.keras.layers.Layer):
+    def __init__(self, *, d_model, num_heads):
+        super(MultiHeadAttention, self).__init__()
+        self.num_heads = num_heads
+        self.d_model = d_model
 
-    out = tf.keras.layers.GlobalMaxPooling2D()(p8)
-    out = tf.keras.layers.LayerNormalization()(out)
-    out = tf.keras.layers.Activation("relu")(out)
-    hg = tf.keras.layers.Dense(HIDDEN_SIZE)(out)
-    g_net = Model(inputs, hg, name="GNet")
-    return g_net
+        assert d_model % self.num_heads == 0
+
+        self.dk = d_model // self.num_heads
+
+        # [num_atoms, d_model]
+        self.wq = tf.keras.layers.Dense(d_model)
+        self.wk = tf.keras.layers.Dense(d_model)
+        self.wv = tf.keras.layers.Dense(d_model)
+
+        self.dense = tf.keras.layers.Dense(d_model)
+
+    def split_heads(self, x, batch_size):
+        """Split the last dimension into (num_heads, dk).
+        Transpose the result such that the shape is (batch_size, num_heads, num_atoms, dk)
+        """
+        x = tf.reshape(x, (batch_size, -1, self.num_heads, self.dk))
+        return tf.transpose(x, perm=[0, 2, 1, 3])
+
+    def call(self, x, v, mask):
+        batch_size = tf.shape(q)[0]
+
+        q = self.wq(x)  # (batch_size, num_atoms, d_model)
+        k = self.wk(x)  # (batch_size, num_atoms, d_model)
+        v = self.wv(v)  # (batch_size, num_atoms, d_model)
+
+        q = self.split_heads(q, batch_size)  # (batch_size, num_heads, num_atoms, dk)
+        k = self.split_heads(k, batch_size)  # (batch_size, num_heads, num_atoms, dk)
+        v = self.split_heads(v, batch_size)  # (batch_size, num_heads, num_atoms, dk)
+
+        # scaled_attention.shape == (batch_size, num_heads, num_atoms, dk)
+        # attention_weights.shape == (batch_size, num_heads, num_atoms, num_atoms)
+        scaled_attention, attention_weights = scaled_dot_product_attention(
+            q, k, v, mask)
+
+        scaled_attention = tf.transpose(scaled_attention, perm=[0, 2, 1, 3])  # (batch_size, num_atoms, num_heads, dk)
+
+        concat_attention = tf.reshape(scaled_attention,
+                                      (batch_size, -1, self.d_model))  # (batch_size, num_atoms, d_model)
+
+        output = self.dense(concat_attention)  # (batch_size, num_atoms, d_model)
+
+        return output, attention_weights
 
 
-def get_gr_core_model():
-    '''
-    mini resnet
-    '''
-    # [BATCH, MAX_NUM_ATOMS, MAX_NUM_ATOMS, FEATURE_DEPTH + COORDS + DIST]
-    inputs = keras.layers.Input(shape=(MAX_NUM_ATOMS, MAX_NUM_ATOMS, FEATURE_DEPTH + 4))
-    _, p1 = encoder_block(inputs, 64, pool=False)
-    _, p2 = encoder_block(p1, 64)
-    _, p3 = encoder_block(p2, 128, pool=False)
-    _, p4 = encoder_block(p3, 128)
-    _, p5 = encoder_block(p4, 256, pool=False)
-    _, p6 = encoder_block(p5, 256)
-    _, p7 = encoder_block(p6, 512)
-    _, p8 = encoder_block(p7, 512)
-    out = tf.keras.layers.GlobalMaxPooling2D()(p8)
-    out = tf.keras.layers.LayerNormalization()(out)
-    out = tf.keras.layers.Activation("relu")(out)
-    # z_mean, z_logstd
-    z_mean = tf.keras.layers.Dense(HIDDEN_SIZE)(out)
-    z_logvar = tf.keras.layers.Dense(HIDDEN_SIZE)(out)
-    z = reparameterize(z_mean, z_logvar)
-    gr_net = Model(inputs, [z_mean, z_logvar, z], name="GRNet")
-    return gr_net
+class EncoderLayer(tf.keras.layers.Layer):
+    def __init__(self, *, d_model, num_heads, dff, rate=0.1):
+        super(EncoderLayer, self).__init__()
+
+        self.mha = MultiHeadAttention(d_model=d_model, num_heads=num_heads)
+        self.ffn = point_wise_feed_forward_network(d_model, dff)
+
+        self.layernorm1 = tf.keras.layers.LayerNormalization(epsilon=1e-6)
+        self.layernorm2 = tf.keras.layers.LayerNormalization(epsilon=1e-6)
+
+        self.dropout1 = tf.keras.layers.Dropout(rate)
+        self.dropout2 = tf.keras.layers.Dropout(rate)
+
+    def call(self, x, v, training, mask):
+
+        attn_output, _ = self.mha(x, v, mask)  # (batch_size, num_atoms, d_model)
+        attn_output = self.dropout1(attn_output, training=training)
+        out1 = self.layernorm1(x + attn_output)  # (batch_size, num_atoms, d_model)
+
+        ffn_output = self.ffn(out1)  # (batch_size, num_atoms, d_model)
+        ffn_output = self.dropout2(ffn_output, training=training)
+        out2 = self.layernorm2(out1 + ffn_output)  # (batch_size, num_atoms, d_model)
+
+        return out2
 
 
-def get_decode_core_model():
-    inputs = keras.layers.Input(shape=(HIDDEN_SIZE * 2,))
-    R = tf.keras.layers.Dense(HIDDEN_SIZE, use_bias=False)(inputs)
-    R = tf.keras.layers.LayerNormalization()(R)
-    R = tf.keras.layers.Activation("relu")(R)
-    R = tf.keras.layers.Dense(HIDDEN_SIZE * 2, use_bias=False)(R)
-    R = tf.keras.layers.LayerNormalization()(R)
-    R = tf.keras.layers.Activation("relu")(R)
-    R = tf.keras.layers.Dense(MAX_NUM_ATOMS * 3)(R)
-    R = tf.reshape(R, [-1, MAX_NUM_ATOMS, 3])
-    dec_net = Model(inputs, R, name="Decoder")
-    return dec_net
+def get_g_net():
+    inputs = tf.keras.layers.Input(shape=(MAX_NUM_ATOMS, MAX_NUM_ATOMS, FEATURE_DEPTH))
+    mask = tf.reduce_sum(tf.abs(inputs), axis=-1)
+    mask = tf.reduce_sum(inputs, axis=1, keepdims=True) <= 0
+    mask = tf.cast(mask, tf.float32)
+    x = GraphEmbed(HIDDEN_SIZE)(inputs)
+    for _ in range(NUM_LAYERS):
+        # (batch_size, num_atoms, d_model)
+        x = EncoderLayer(d_model=HIDDEN_SIZE, num_heads=NUM_HEADS, dff=DFF)(x, x, mask=mask)
+
+    return Model(inputs, x, name='GNet')
+
+
+def get_gdr_net():
+    inputs = tf.keras.layers.Input(shape=(MAX_NUM_ATOMS, MAX_NUM_ATOMS, FEATURE_DEPTH + 4))
+    mask = tf.reduce_sum(tf.abs(inputs), axis=-1)
+    mask = tf.reduce_sum(inputs, axis=1, keepdims=True) <= 0
+    mask = tf.cast(mask, tf.float32)
+    x = GraphEmbed(HIDDEN_SIZE)(inputs)
+    for _ in range(NUM_LAYERS):
+        # (batch_size, num_atoms, d_model)
+        x = EncoderLayer(d_model=HIDDEN_SIZE, num_heads=NUM_HEADS, dff=DFF)(x, x, mask=mask)
+
+    # [batch_size, num_atoms, d_model * 2] mean and variance of v to decoder
+    x = tf.keras.layers.Dense(HIDDEN_SIZE * 2)
+    z_mean, z_logvar = tf.split(x, axis=-1)
+    z = Sampling()((z_mean, z_logvar))
+    return Model(inputs, [z_mean, z_logvar, z], name='GDRNet')
+
+
+def get_decode_net():
+    # [batch_size, num_atoms, d_model]
+    inputs = tf.keras.layers.Input(shape=(MAX_NUM_ATOMS, HIDDEN_SIZE))
+    mask = tf.keras.layers.Input(shape=(1, MAX_NUM_ATOMS))
+    v = tf.keras.layers.Input(shape=(MAX_NUM_ATOMS, HIDDEN_SIZE))
+    x = EncoderLayer(d_model=HIDDEN_SIZE, num_heads=NUM_HEADS, dff=DFF)(inputs, v, mask=mask)
+    for _ in range(NUM_LAYERS - 1):
+        # (batch_size, num_atoms, d_model)
+        x = EncoderLayer(d_model=HIDDEN_SIZE, num_heads=NUM_HEADS, dff=DFF)(x, x, mask=mask)
+
+    R = tf.keras.layers.Dense(3)
+    return Model([inputs, mask, v], R, name='DecoderNet')
