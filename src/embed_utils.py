@@ -23,7 +23,7 @@ class GraphEmbed(tf.keras.layers.Layer):
         # [..., num_atoms, num_atoms + 2, feature_depth]
         x = self.pad(x)
         # [batch_size, num_atoms, d_model]
-        x = tf.squeeze(self.embed(x))
+        x = tf.reduce_sum(self.embed(x), axis=1)
         x = self.dropout(x, training)
         return x
 
@@ -103,7 +103,7 @@ class MultiHeadAttention(tf.keras.layers.Layer):
         return tf.transpose(x, perm=[0, 2, 1, 3])
 
     def call(self, x, v, mask):
-        batch_size = tf.shape(q)[0]
+        batch_size = tf.shape(x)[0]
 
         q = self.wq(x)  # (batch_size, num_atoms, d_model)
         k = self.wk(x)  # (batch_size, num_atoms, d_model)
@@ -178,8 +178,8 @@ def get_gdr_net():
         x = EncoderLayer(d_model=HIDDEN_SIZE, num_heads=NUM_HEADS, dff=DFF)(x, x, mask=mask)
 
     # [batch_size, num_atoms, d_model * 2] mean and variance of v to decoder
-    x = tf.keras.layers.Dense(HIDDEN_SIZE * 2)
-    z_mean, z_logvar = tf.split(x, axis=-1)
+    z_mean = tf.keras.layers.Dense(HIDDEN_SIZE)(x)
+    z_logvar = tf.keras.layers.Dense(HIDDEN_SIZE)(x)
     z = Sampling()((z_mean, z_logvar))
     return Model(inputs, [z_mean, z_logvar, z], name='GDRNet')
 
@@ -194,5 +194,5 @@ def get_decode_net():
         # (batch_size, num_atoms, d_model)
         x = EncoderLayer(d_model=HIDDEN_SIZE, num_heads=NUM_HEADS, dff=DFF)(x, x, mask=mask)
 
-    R = tf.keras.layers.Dense(3)
+    R = tf.keras.layers.Dense(3)(x)
     return Model([inputs, mask, v], R, name='DecoderNet')
