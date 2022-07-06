@@ -89,21 +89,18 @@ def distance_rmse(y_true, y_pred):
 
 
 class WarmCosine(tf.keras.optimizers.schedules.LearningRateSchedule):
-    def __init__(self, initial_lr=1e-6, max_lr=2e-4, warmup_steps=4000, decay_steps=16000):
+    def __init__(self, warmup_steps=4000):
         super(WarmCosine, self).__init__()
-        self.initial_lr = initial_lr
-        self.max_lr = max_lr
-        self.decay_steps = decay_steps
+        self.d_model = 9216
+        self.d_model = tf.cast(self.d_model, tf.float32)
+
         self.warmup_steps = warmup_steps
 
     def __call__(self, step):
-        phase_1 = step * (self.max_lr - self.initial_lr) / self.warmup_steps + self.initial_lr
-        step_tmp = step - self.warmup_steps
-        cosine_decay = 0.5 * (1 + tf.math.cos(math.pi * step_tmp / self.decay_steps))
-        phase_2 = self.initial_lr + (self.max_lr - self.initial_lr) * cosine_decay
-        is_phase_1 = tf.cast(step < self.warmup_steps, tf.float32)
-        lr = phase_1 * is_phase_1 + phase_2 * (1 - is_phase_1)
-        return lr
+        arg1 = tf.math.rsqrt(step)
+        arg2 = step * (self.warmup_steps ** -1.5)
+
+        return tf.math.rsqrt(self.d_model) * tf.math.minimum(arg1, arg2)
 
 
 def get_optimizer():

@@ -16,15 +16,20 @@ def bottleneck(input, num_filters, kernel_size=3, padding='SAME'):
     x = tf.keras.layers.Conv2D(num_filters // 4,
                                kernel_size=1,
                                kernel_regularizer=regularizers.L2(1e-4),
+                               use_bias=False,
                                padding=padding)(input)
     x = tf.keras.layers.Conv2D(num_filters // 4,
                                kernel_size=kernel_size,
                                kernel_regularizer=regularizers.L2(1e-4),
+                               use_bias=False,
                                padding=padding)(x)
     x = tf.keras.layers.Conv2D(num_filters,
                                kernel_size=1,
                                kernel_regularizer=regularizers.L2(1e-4),
+                               use_bias=False,
                                padding=padding)(x)
+    x = tf.keras.layers.LayerNormalization()(x)
+    x = tf.keras.layers.Activation("relu")(x)
     return x
 
 
@@ -37,8 +42,8 @@ def conv2d_block(input, num_filters, kernel_size=3, padding='SAME'):
                                    kernel_regularizer=regularizers.L2(1e-4),
                                    use_bias=False,
                                    padding=padding)(input)
-    x = tf.keras.layers.Activation("relu")(x)
     x = tf.keras.layers.LayerNormalization()(x)
+    x = tf.keras.layers.Activation("relu")(x)
 
     if num_filters >= 256:
         x = bottleneck(x, num_filters)
@@ -48,8 +53,8 @@ def conv2d_block(input, num_filters, kernel_size=3, padding='SAME'):
                                    kernel_regularizer=regularizers.L2(1e-4),
                                    use_bias=False,
                                    padding=padding)(x)
-    x = tf.keras.layers.Activation("relu")(x)
     x = tf.keras.layers.LayerNormalization()(x)
+    x = tf.keras.layers.Activation("relu")(x)
     return x
 
 
@@ -70,5 +75,7 @@ def decoder_block(X, skip_features, num_filters, unpool=True):
                                             kernel_regularizer=regularizers.L2(1e-4),
                                             use_bias=False)(X)
     X = tf.keras.layers.Concatenate()([X, skip_features])
+    X = tf.keras.layers.LayerNormalization()(X)
+    X = tf.keras.layers.Activation("relu")(X)
     X = conv2d_block(X, num_filters)
     return X

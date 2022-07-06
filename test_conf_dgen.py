@@ -74,7 +74,6 @@ def compute_cov_mat(smiles_path):
     shuffle(smiles)
     covs = []
     mats = []
-    breakpoint()
     for smi in smiles[:200]:
         try:
             mol_path = "/mnt/rdkit_folder/" + drugs_summ[smi]['pickle_path']

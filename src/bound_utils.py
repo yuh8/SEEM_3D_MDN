@@ -32,8 +32,8 @@ def sample_bound_matrix(alpha, d_pred_mean, d_pred_std, d_mean, d_std, num_atoms
             alpha_idx = np.argmax(np.random.multinomial(1, alpha_ij))
             _mean = d_pred_mean[i, j, alpha_idx]
             _std = d_pred_std[i, j, alpha_idx]
-            bound_matrix[i, j] = (_mean + np.exp(_std)) * d_std + d_mean
-            low_bound = (_mean - np.exp(_std)) * d_std + d_mean
+            bound_matrix[i, j] = (_mean + 3 * np.exp(_std)) * d_std + d_mean
+            low_bound = (_mean - 3 * np.exp(_std)) * d_std + d_mean
             bound_matrix[j, i] = np.maximum(low_bound, MIN_DISTANCE)
 
     return bound_matrix
@@ -59,8 +59,6 @@ def embed_conf(mol, bounds_matrix, seed):
     ps.clearConfs = False
     ps.randomSeed = seed
     ps.SetBoundsMat(bounds_matrix)
-    breakpoint()
-
     return rdDistGeom.EmbedMolecule(mol, ps)
 
 
