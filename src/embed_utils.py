@@ -70,7 +70,6 @@ def scaled_dot_product_attention(q, k, v, mask):
 
 
 class Sampling(tf.keras.layers.Layer):
-    """Uses (z_mean, z_log_var) to sample z, the vector encoding a digit."""
 
     def call(self, inputs):
         z_mean, z_log_var = inputs
@@ -157,7 +156,7 @@ class EncoderLayer(tf.keras.layers.Layer):
 def get_g_net():
     inputs = tf.keras.layers.Input(shape=(MAX_NUM_ATOMS, MAX_NUM_ATOMS, FEATURE_DEPTH))
     mask = tf.reduce_sum(tf.abs(inputs), axis=-1)
-    mask = tf.reduce_sum(inputs, axis=1, keepdims=True) <= 0
+    mask = tf.reduce_sum(mask, axis=1, keepdims=True) <= 0
     mask = tf.cast(mask, tf.float32)
     x = GraphEmbed(HIDDEN_SIZE)(inputs)
     for _ in range(NUM_LAYERS):
@@ -170,7 +169,7 @@ def get_g_net():
 def get_gdr_net():
     inputs = tf.keras.layers.Input(shape=(MAX_NUM_ATOMS, MAX_NUM_ATOMS, FEATURE_DEPTH + 4))
     mask = tf.reduce_sum(tf.abs(inputs), axis=-1)
-    mask = tf.reduce_sum(inputs, axis=1, keepdims=True) <= 0
+    mask = tf.reduce_sum(mask, axis=1, keepdims=True) <= 0
     mask = tf.cast(mask, tf.float32)
     x = GraphEmbed(HIDDEN_SIZE)(inputs)
     for _ in range(NUM_LAYERS):

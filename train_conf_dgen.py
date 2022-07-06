@@ -1,5 +1,4 @@
 import glob
-import pickle
 import numpy as np
 import tensorflow as tf
 from tensorflow import keras
@@ -167,14 +166,12 @@ def data_iterator_val():
 def data_iterator_test():
     num_files = len(glob.glob(test_path + 'GDR_*.pkl'))
     batch_nums = np.arange(num_files)
-    while True:
-        np.random.shuffle(batch_nums)
-        for batch in batch_nums:
-            f_name = test_path + f'GDR_{batch}.npz'
-            GDR = np.load(f_name)
-            G = GDR['G']
-            R = GDR['R']
-            yield G, R
+    for batch in batch_nums:
+        f_name = test_path + f'GDR_{batch}.npz'
+        GDR = np.load(f_name)
+        G = GDR['G']
+        R = GDR['R']
+        yield G, R
 
 
 def _fixup_shape(x, y):
@@ -195,8 +192,8 @@ if __name__ == "__main__":
     val_path = '/mnt/transvae/test_data/val_batch/'
     test_path = '/mnt/transvae/test_data/test_batch/'
 
-    train_steps = len(glob.glob(train_path + 'GDR_*.pkl'))
-    val_steps = len(glob.glob(val_path + 'GDR_*.pkl'))
+    train_steps = len(glob.glob(train_path + 'GDR_*.pkl')) // BATCH_SIZE
+    val_steps = len(glob.glob(val_path + 'GDR_*.pkl')) // VAL_BATCH_SIZE
 
     callbacks = [tf.keras.callbacks.ModelCheckpoint(ckpt_path,
                                                     save_freq=1000,
@@ -225,7 +222,7 @@ if __name__ == "__main__":
         data_iterator_train,
         output_types=(tf.float32, tf.float32),
         output_shapes=((MAX_NUM_ATOMS, MAX_NUM_ATOMS, FEATURE_DEPTH + 4),
-                       (MAX_NUM_ATOMS, MAX_NUM_ATOMS, 1)))
+                       (MAX_NUM_ATOMS, 3)))
 
     train_dataset = train_dataset.shuffle(buffer_size=1000, seed=0,
                                           reshuffle_each_iteration=True)
@@ -258,6 +255,9 @@ if __name__ == "__main__":
                             return_dict=True)
 
     # save trained model in two ways
+    g_net.compile(optimizer='adam', loss=None)
     g_net.save('g_net/' + 'GNet')
+    gdr_net.compile(optimizer='adam', loss=None)
     gdr_net.save('gr_net/' + 'GDRNet')
+    dec_net.compile(optimizer='adam', loss=None)
     dec_net.save('dec_net/' + 'DecNet')
