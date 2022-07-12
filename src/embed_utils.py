@@ -157,6 +157,8 @@ def get_g_net():
     inputs = tf.keras.layers.Input(shape=(MAX_NUM_ATOMS, MAX_NUM_ATOMS, FEATURE_DEPTH))
     mask = tf.reduce_sum(tf.abs(inputs), axis=-1)
     mask = tf.reduce_sum(mask, axis=1, keepdims=True) <= 0
+    # for multi-head attention, mask dism [batch_size, 1, 1, num_atoms]
+    mask = tf.expand_dims(mask, 1)
     mask = tf.cast(mask, tf.float32)
     x = GraphEmbed(HIDDEN_SIZE)(inputs)
     for _ in range(NUM_LAYERS):
@@ -170,6 +172,8 @@ def get_gdr_net():
     inputs = tf.keras.layers.Input(shape=(MAX_NUM_ATOMS, MAX_NUM_ATOMS, FEATURE_DEPTH + 4))
     mask = tf.reduce_sum(tf.abs(inputs), axis=-1)
     mask = tf.reduce_sum(mask, axis=1, keepdims=True) <= 0
+    # for multi-head attention, mask dism [batch_size, 1, 1, num_atoms]
+    mask = tf.expand_dims(mask, 1)
     mask = tf.cast(mask, tf.float32)
     x = GraphEmbed(HIDDEN_SIZE)(inputs)
     for _ in range(NUM_LAYERS):
@@ -186,7 +190,7 @@ def get_gdr_net():
 def get_decode_net():
     # [batch_size, num_atoms, d_model]
     inputs = tf.keras.layers.Input(shape=(MAX_NUM_ATOMS, HIDDEN_SIZE))
-    mask = tf.keras.layers.Input(shape=(1, MAX_NUM_ATOMS))
+    mask = tf.keras.layers.Input(shape=(1, 1, MAX_NUM_ATOMS))
     v = tf.keras.layers.Input(shape=(MAX_NUM_ATOMS, HIDDEN_SIZE))
     x = EncoderLayer(d_model=HIDDEN_SIZE, num_heads=NUM_HEADS, dff=DFF)(inputs, v, mask=mask)
     for _ in range(NUM_LAYERS - 1):

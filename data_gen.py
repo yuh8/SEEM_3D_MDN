@@ -37,8 +37,6 @@ def get_and_save_data_batch(smiles_path, dest_data_path, batch_num=10000000):
         drugs_summ = json.load(f)
 
     smiles = pickle_load(smiles_path)
-    G = []
-    R = []
     batch = 0
     for smi in smiles:
         try:
@@ -59,11 +57,11 @@ def get_and_save_data_batch(smiles_path, dest_data_path, batch_num=10000000):
             try:
                 g, r = mol_to_tensor(mol)
             except Exception as e:
-                draw_mol_with_idx(mol)
+                # draw_mol_with_idx(mol)
                 print(e)
                 continue
 
-            np.savez_compressed(dest_data_path + f'GD_{batch}', G=g, R=r)
+            np.savez_compressed(dest_data_path + f'GDR_{batch}', G=g, R=r)
             batch += 1
             if batch == batch_num:
                 break
@@ -73,7 +71,7 @@ def get_and_save_data_batch(smiles_path, dest_data_path, batch_num=10000000):
 
 
 def get_num_atoms_dist():
-    drugs_file = "/mnt/transvae/data/rdkit_folder/summary_drugs.json"
+    drugs_file = "/mnt/rdkit_folder/summary_drugs.json"
     with open(drugs_file, "r") as f:
         drugs_summ = json.load(f)
 
@@ -81,7 +79,7 @@ def get_num_atoms_dist():
     num_atoms = []
     for idx, smi in enumerate(all_simles):
         try:
-            mol_path = "/mnt/transvae/data/rdkit_folder/" + drugs_summ[smi]['pickle_path']
+            mol_path = "/mnt/rdkit_folder/" + drugs_summ[smi]['pickle_path']
             with open(mol_path, "rb") as f:
                 mol_dict = pickle.load(f)
         except Exception as e:

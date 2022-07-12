@@ -30,6 +30,7 @@ def core_model():
     inputs = keras.layers.Input(shape=(MAX_NUM_ATOMS, MAX_NUM_ATOMS, FEATURE_DEPTH + 4))
     mask = tf.reduce_sum(tf.abs(inputs), axis=-1)
     mask = tf.reduce_sum(mask, axis=1, keepdims=True) <= 0
+    mask = tf.expand_dims(mask, axis=1)
     mask = tf.cast(mask, tf.float32)
     z_mean, z_log_var, z = gdr_net(inputs)
     h = g_net(inputs[..., :-4])
@@ -105,7 +106,7 @@ class TransVAE(Model):
             z_mean, z_log_var, r_pred = self(X, training=True)
             kl_loss = loss_func_kl(z_mean, z_log_var)
             rec_loss = loss_func_r(r_true, r_pred)
-            loss = 0.01 * kl_loss + rec_loss
+            loss = 0.001 * kl_loss + rec_loss
 
         # Compute gradients
         trainable_vars = self.trainable_variables
@@ -138,7 +139,7 @@ class TransVAE(Model):
 
 
 def data_iterator_train():
-    num_files = len(glob.glob(train_path + 'GDR_*.pkl'))
+    num_files = len(glob.glob(train_path + 'GDR_*.npz'))
     batch_nums = np.arange(num_files)
     while True:
         np.random.shuffle(batch_nums)
@@ -151,7 +152,7 @@ def data_iterator_train():
 
 
 def data_iterator_val():
-    num_files = len(glob.glob(val_path + 'GDR_*.pkl'))
+    num_files = len(glob.glob(val_path + 'GDR_*.npz'))
     batch_nums = np.arange(num_files)
     while True:
         np.random.shuffle(batch_nums)
@@ -164,7 +165,7 @@ def data_iterator_val():
 
 
 def data_iterator_test():
-    num_files = len(glob.glob(test_path + 'GDR_*.pkl'))
+    num_files = len(glob.glob(test_path + 'GDR_*.npz'))
     batch_nums = np.arange(num_files)
     for batch in batch_nums:
         f_name = test_path + f'GDR_{batch}.npz'
@@ -192,8 +193,8 @@ if __name__ == "__main__":
     val_path = '/mnt/transvae/test_data/val_batch/'
     test_path = '/mnt/transvae/test_data/test_batch/'
 
-    train_steps = len(glob.glob(train_path + 'GDR_*.pkl')) // BATCH_SIZE
-    val_steps = len(glob.glob(val_path + 'GDR_*.pkl')) // VAL_BATCH_SIZE
+    train_steps = len(glob.glob(train_path + 'GDR_*.npz')) // BATCH_SIZE
+    val_steps = len(glob.glob(val_path + 'GDR_*.npz')) // VAL_BATCH_SIZE
 
     callbacks = [tf.keras.callbacks.ModelCheckpoint(ckpt_path,
                                                     save_freq=1000,
