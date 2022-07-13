@@ -1,3 +1,4 @@
+from copy import deepcopy
 import json
 import pickle
 import numpy as np
@@ -15,6 +16,7 @@ def get_train_val_test_smiles():
         drugs_summ = json.load(f)
 
     all_simles = list(drugs_summ.keys())
+    np.random.shuffle(all_simles)
     create_folder('/mnt/transvae/train_data/train_batch/')
     create_folder('/mnt/transvae/test_data/test_batch/')
     create_folder('/mnt/transvae/test_data/val_batch/')
@@ -31,7 +33,7 @@ def get_train_val_test_smiles():
     pickle_save(smiles_val, '/mnt/transvae/test_data/val_batch/smiles.pkl')
 
 
-def get_and_save_data_batch(smiles_path, dest_data_path, batch_num=10000000):
+def get_and_save_data_batch(smiles_path, dest_data_path, batch_num=200000):
     drugs_file = "/mnt/rdkit_folder/summary_drugs.json"
     with open(drugs_file, "r") as f:
         drugs_summ = json.load(f)
@@ -105,6 +107,6 @@ if __name__ == "__main__":
     get_and_save_data_batch('/mnt/transvae/train_data/train_batch/smiles.pkl',
                             '/mnt/transvae/train_data/train_batch/')
     get_and_save_data_batch('/mnt/transvae/test_data/val_batch/smiles.pkl',
-                            '/mnt/transvae/test_data/val_batch/', batch_num=10000)
+                            '/mnt/transvae/test_data/val_batch/', batch_num=2500)
     get_and_save_data_batch('/mnt/transvae/test_data/test_batch/smiles.pkl',
                             '/mnt/transvae/test_data/test_batch/', batch_num=20000)

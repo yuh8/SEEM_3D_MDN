@@ -3,7 +3,7 @@ from rdkit import Chem
 TF_EPS = tf.keras.backend.epsilon()
 
 # data gen
-NUM_CONFS_PER_MOL = 200
+NUM_CONFS_PER_MOL = 5
 
 # Bound features {Type:4, Stereo: 6}
 BOND_DICT = Chem.rdchem.BondType.values

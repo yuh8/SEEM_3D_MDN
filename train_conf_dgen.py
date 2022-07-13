@@ -46,7 +46,9 @@ def loss_func_r(y_true, y_pred):
                                           inp=[y_pred, y_true, mask],
                                           Tout=tf.float32))
     QC = tf_contriod(y_true, mask)
-    y_pred_aligned = tf.matmul(y_pred, Rot) + QC
+    PC = tf_contriod(y_pred, mask)
+    y_pred_m = (y_pred - PC) * mask
+    y_pred_aligned = tf.matmul(y_pred_m, Rot) + QC
     y_pred_aligned *= mask
     total_row = tf.reduce_sum(mask, axis=1, keepdims=True)
     loss = tf.math.squared_difference(y_pred_aligned, y_true)
@@ -106,7 +108,7 @@ class TransVAE(Model):
             z_mean, z_log_var, r_pred = self(X, training=True)
             kl_loss = loss_func_kl(z_mean, z_log_var)
             rec_loss = loss_func_r(r_true, r_pred)
-            loss = 0.001 * kl_loss + rec_loss
+            loss = 1e-5 * kl_loss + rec_loss
 
         # Compute gradients
         trainable_vars = self.trainable_variables
@@ -246,12 +248,12 @@ if __name__ == "__main__":
     test_dataset = test_dataset.batch(VAL_BATCH_SIZE, drop_remainder=True).map(_fixup_shape)
     test_dataset = test_dataset.prefetch(tf.data.experimental.AUTOTUNE)
 
-    transvae.fit(train_dataset,
-                 epochs=50,
-                 validation_data=val_dataset,
-                 validation_steps=val_steps,
-                 callbacks=callbacks,
-                 steps_per_epoch=train_steps)
+    # transvae.fit(train_dataset,
+    #              epochs=50,
+    #              validation_data=val_dataset,
+    #              validation_steps=val_steps,
+    #              callbacks=callbacks,
+    #              steps_per_epoch=train_steps)
     res = transvae.evaluate(test_dataset,
                             return_dict=True)
 

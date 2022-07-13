@@ -1,4 +1,5 @@
 import json
+from os import spawnlp
 import pickle
 from random import shuffle
 import numpy as np
@@ -8,16 +9,24 @@ import tensorflow_probability as tfp
 import matplotlib.pyplot as plt
 from copy import deepcopy
 from multiprocessing import freeze_support
+from rdkit.Geometry import Point3D
 from rdkit.Chem.Draw import MolsToGridImage
 from rdkit.Chem.rdmolops import RemoveHs
 from rdkit.Chem.rdMolAlign import GetBestRMS
 from rdkit.Chem.rdForceFieldHelpers import MMFFOptimizeMoleculeConfs
 from src.data_process_utils import mol_to_tensor
 from src.bound_utils import embed_conformer
-from src.misc_utils import load_json_model, create_folder, pickle_load, pickle_save
-from src.CONSTS import TF_EPS
+from src.misc_utils import load_json_model, create_folder, pickle_load, pickle_save, kabsch_rmsd
+from src.CONSTS import HIDDEN_SIZE, MAX_NUM_ATOMS, TF_EPS
 
 tfd = tfp.distributions
+
+
+def load_models():
+    g_net = tf.keras.models.load_model('g_net/GNet/')
+    gr_net = tf.keras.models.load_model('gr_net/GDRNet/')
+    decoder_net = tf.keras.models.load_model('dec_net/DecNet/')
+    return g_net, decoder_net, gr_net
 
 
 def loss_func(y_true, y_pred):
@@ -44,29 +53,40 @@ def plot_3d_scatter(pos):
     ax.set_ylabel('Y-axis')
     ax.set_zlabel('Z-axis')
 
-    plt.show()
+    plt.savefig('./conf_1.png')
 
 
-def get_best_RMSD(probe, ref, prbid, refid=-1):
+def get_best_RMSD(probe, ref, prbid=-1, refid=-1):
     probe = RemoveHs(probe)
     ref = RemoveHs(ref)
     rmsd = GetBestRMS(probe, ref, prbid, refid)
     return rmsd
 
 
-def get_prediction(mol):
+def get_prediction(mol, sample_size):
     mol_origin = deepcopy(mol)
-    g, _, _ = mol_to_tensor(mol_origin)
-    g = np.expand_dims(g, axis=0)
-    mask = g.sum(-1) > 3
-    d_pred = model(g, training=False).numpy()[0]
-    d_pred_mean = np.squeeze(d_pred[..., 1] * mask)
-    d_pred_std = np.squeeze(np.exp(d_pred[..., 2]) * mask)
-    return d_pred_mean, d_pred_std, mask
+    gr, _ = mol_to_tensor(mol_origin)
+    g = np.expand_dims(gr, axis=0)[..., :-4]
+    gdr = np.expand_dims(gr, axis=0)
+    mask = np.sum(np.abs(g), axis=-1)
+    mask = np.sum(mask, axis=1, keepdims=True) <= 0
+    mask = np.expand_dims(mask, axis=1).astype(np.float32)
+    r_pred = []
+    for _ in range(sample_size):
+        # h = g_net(g, training=False).numpy()
+        h = g_net.predict(g)
+        z_mean, z_logvar, z = gr_net.predict(gdr)
+        breakpoint()
+        # h = np.tile(h, [sample_size, 1, 1])
+        # z = np.tile(z, [sample_size, 1, 1])
+        # z = np.random.normal(0, 1, size=(sample_size, MAX_NUM_ATOMS, HIDDEN_SIZE))
+        _r_pred = decoder_net.predict([h, mask, z]) * (1 - np.squeeze(mask)[..., np.newaxis])
+        r_pred.append(_r_pred)
+    return r_pred
 
 
 def compute_cov_mat(smiles_path):
-    drugs_file = "D:/seem_3d_data/data/rdkit_folder/summary_drugs.json"
+    drugs_file = "/mnt/rdkit_folder/summary_drugs.json"
     with open(drugs_file, "r") as f:
         drugs_summ = json.load(f)
 
@@ -76,7 +96,7 @@ def compute_cov_mat(smiles_path):
     mats = []
     for smi in smiles[:200]:
         try:
-            mol_path = "D:/seem_3d_data/data/rdkit_folder/" + drugs_summ[smi]['pickle_path']
+            mol_path = "/mnt/rdkit_folder/" + drugs_summ[smi]['pickle_path']
             with open(mol_path, "rb") as f:
                 mol_dict = pickle.load(f)
         except:
@@ -91,18 +111,16 @@ def compute_cov_mat(smiles_path):
         mol_pred = deepcopy(conf_df.iloc[0].rd_mol)
 
         try:
-            d_pred_mean, d_pred_std, mask = get_prediction(mol_pred)
+            r_pred = get_prediction(mol_pred, conf_df.shape[0] * 2)
         except:
             continue
-        num_refs = conf_df.shape[0]
-        num_gens = num_refs * 2
 
-        embed_conformer(mol_pred, num_gens, d_pred_mean, d_pred_std,
-                        d_mean, d_std, np.squeeze(mask), seed=43)
+        breakpoint()
 
-        num_gens = mol_pred.GetNumConformers()
-        cov_mat = np.zeros((num_refs, num_gens))
+        num_gens = conf_df.shape[0] * 2
+        cov_mat = np.zeros((conf_df.shape[0], num_gens))
         # MMFFOptimizeMoleculeConfs(mol_pred)
+        # mol_pred.RemoveAllConformers()
 
         cnt = 0
         try:
@@ -110,13 +128,22 @@ def compute_cov_mat(smiles_path):
                 mol_prob = deepcopy(mol_pred)
                 mol_ref = deepcopy(mol_row.rd_mol)
                 for j in range(num_gens):
-                    rmsd = get_best_RMSD(mol_prob, mol_ref, j)
+                    _conf = mol_prob.GetConformer()
+                    r_true = deepcopy(mol_ref.GetConformer().GetPositions())[np.newaxis, ...]
+                    # for i in range(mol_prob.GetNumAtoms()):
+                    #     x, y, z = np.double(r_pred[j][0][i])
+                    #     _conf.SetAtomPosition(i, Point3D(x, y, z))
+                    # pickle_save([mol_prob], 'generated_confs.pkl')
+                    _r_pred = r_pred[j][:, :mol_prob.GetNumAtoms()]
+                    rmsd = kabsch_rmsd(_r_pred, r_true)
+                    # rmsd = get_best_RMSD(mol_prob, mol_ref)
                     cov_mat[cnt, j] = rmsd
+                breakpoint()
                 cnt += 1
         except:
             continue
         cov_score = np.mean(cov_mat.min(-1) < 1.25)
-        mat_score = np.sum(cov_mat.min(-1)) / num_refs
+        mat_score = np.sum(cov_mat.min(-1)) / conf_df.shape[0]
         print('cov_score and mat_score for {0} is {1} and {2}'.format(smi, cov_score, mat_score))
         covs.append(cov_score)
         mats.append(mat_score)
@@ -125,16 +152,7 @@ def compute_cov_mat(smiles_path):
 
 if __name__ == "__main__":
     freeze_support()
-    train_path = 'D:/seem_3d_data/train_data/train_batch/'
-    test_path = 'D:/seem_3d_data/test_data/test_batch/'
-
-    create_folder('gen_samples/')
-    model = load_json_model("conf_model_d_K_1/conf_model_d.json")
-    model.compile(optimizer='adam',
-                  loss=loss_func)
-    model.load_weights("./checkpoints/generator_d_K_1_legacy/")
-    f_name = train_path + 'stats.pkl'
-    with open(f_name, 'rb') as handle:
-        d_mean, d_std = pickle.load(handle)
+    g_net, decoder_net, gr_net = load_models()
+    test_path = '/mnt/transvae/test_data/test_batch/'
 
     compute_cov_mat(test_path + 'smiles.pkl')

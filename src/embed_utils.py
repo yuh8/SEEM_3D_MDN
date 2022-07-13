@@ -4,14 +4,15 @@ from .CONSTS import DFF, MAX_NUM_ATOMS, FEATURE_DEPTH, HIDDEN_SIZE, NUM_HEADS, N
 
 
 class GraphEmbed(tf.keras.layers.Layer):
-    def __init__(self, d_model, rate=0.1):
+    def __init__(self, d_model, kernel_width=3, rate=0.1):
         super(GraphEmbed, self).__init__()
         self.d_model = d_model
+        self.kernel_width = kernel_width
         self.pad = tf.keras.layers.ZeroPadding2D(padding=[0, 1])
         self.dropout = tf.keras.layers.Dropout(rate)
 
     def build(self, input_shape):
-        self.kernel_size = [input_shape[1], 3]
+        self.kernel_size = [input_shape[1], self.kernel_width]
         self.embed = tf.keras.layers.Conv2D(self.d_model,
                                             kernel_size=self.kernel_size,
                                             padding='valid')
@@ -21,7 +22,8 @@ class GraphEmbed(tf.keras.layers.Layer):
         x: [batch_size, num_atoms, num_atoms, feature_depth]
         '''
         # [..., num_atoms, num_atoms + 2, feature_depth]
-        x = self.pad(x)
+        if self.kernel_width == 3:
+            x = self.pad(x)
         # [batch_size, num_atoms, d_model]
         x = tf.reduce_sum(self.embed(x), axis=1)
         x = self.dropout(x, training)
@@ -180,6 +182,8 @@ def get_gdr_net():
         # (batch_size, num_atoms, d_model)
         x = EncoderLayer(d_model=HIDDEN_SIZE, num_heads=NUM_HEADS, dff=DFF)(x, x, mask=mask)
 
+    x = GraphEmbed(d_model=1, kernel_width=1)(x[..., tf.newaxis])
+    x = tf.transpose(x, perm=[0, 2, 1])
     # [batch_size, num_atoms, d_model * 2] mean and variance of v to decoder
     z_mean = tf.keras.layers.Dense(HIDDEN_SIZE)(x)
     z_logvar = tf.keras.layers.Dense(HIDDEN_SIZE)(x)
@@ -191,9 +195,9 @@ def get_decode_net():
     # [batch_size, num_atoms, d_model]
     inputs = tf.keras.layers.Input(shape=(MAX_NUM_ATOMS, HIDDEN_SIZE))
     mask = tf.keras.layers.Input(shape=(1, 1, MAX_NUM_ATOMS))
-    v = tf.keras.layers.Input(shape=(MAX_NUM_ATOMS, HIDDEN_SIZE))
-    x = EncoderLayer(d_model=HIDDEN_SIZE, num_heads=NUM_HEADS, dff=DFF)(inputs, v, mask=mask)
-    for _ in range(NUM_LAYERS - 1):
+    v = tf.keras.layers.Input(shape=(1, HIDDEN_SIZE))
+    x = inputs + v
+    for _ in range(NUM_LAYERS):
         # (batch_size, num_atoms, d_model)
         x = EncoderLayer(d_model=HIDDEN_SIZE, num_heads=NUM_HEADS, dff=DFF)(x, x, mask=mask)
 

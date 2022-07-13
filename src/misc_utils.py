@@ -175,12 +175,31 @@ def kabsch_fit(P, Q, mask):
     mask: [B,N,1]
     '''
     QC = centroid(Q, mask)
-    Q = (Q - QC) * mask
-    P = (P - centroid(P, mask)) * mask
-    R = kabsch(P, Q)
+    Qm = (Q - QC) * mask
+    Pm = (P - centroid(P, mask)) * mask
+    R = kabsch(Pm, Qm)
     return R
 
 
 def align_conf(y_pred, y_true, mask):
     R = kabsch_fit(y_pred.numpy(), y_true.numpy(), mask.numpy()).astype(np.float32)
     return tf.convert_to_tensor(R)
+
+
+def kabsch_rmsd(P, Q):
+    '''
+    P: [B,N,D]
+    Q: [B,N,D]
+    mask: [B,N,1]
+    '''
+    mask = np.ones((1, P.shape[1], 1))
+    QC = centroid(Q, mask)
+    Qm = (Q - QC) * mask
+    Pm = (P - centroid(P, mask)) * mask
+    R = kabsch(Pm, Qm)
+    Q_pred = np.matmul(Pm, R) + QC
+    rmsd = (Q - Q_pred)**2
+    rmsd = np.sum(rmsd, axis=-1)
+    rmsd = np.mean(rmsd)
+    rmsd = np.sqrt(rmsd)
+    return rmsd
