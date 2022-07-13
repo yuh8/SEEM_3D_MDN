@@ -186,20 +186,19 @@ def align_conf(y_pred, y_true, mask):
     return tf.convert_to_tensor(R)
 
 
-def kabsch_rmsd(P, Q):
+def kabsch_rmsd(P, Q, mask):
     '''
     P: [B,N,D]
     Q: [B,N,D]
     mask: [B,N,1]
     '''
-    mask = np.ones((1, P.shape[1], 1))
-    QC = centroid(Q, mask)
-    Qm = (Q - QC) * mask
+    R = kabsch_fit(P, Q, mask)
     Pm = (P - centroid(P, mask)) * mask
-    R = kabsch(Pm, Qm)
-    Q_pred = np.matmul(Pm, R) + QC
-    rmsd = (Q - Q_pred)**2
+    QC = centroid(Q, mask)
+    Q_pred = (np.matmul(Pm, R) + QC) * mask
+    diff = Q - Q_pred
+    rmsd = diff * diff
     rmsd = np.sum(rmsd, axis=-1)
-    rmsd = np.mean(rmsd)
+    rmsd = np.sum(rmsd, axis=-1) / np.sum(np.squeeze(mask), axis=-1)
     rmsd = np.sqrt(rmsd)
     return rmsd

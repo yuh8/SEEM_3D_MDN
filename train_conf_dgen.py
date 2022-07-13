@@ -48,12 +48,10 @@ def loss_func_r(y_true, y_pred):
     QC = tf_contriod(y_true, mask)
     PC = tf_contriod(y_pred, mask)
     y_pred_m = (y_pred - PC) * mask
-    y_pred_aligned = tf.matmul(y_pred_m, Rot) + QC
-    y_pred_aligned *= mask
-    total_row = tf.reduce_sum(mask, axis=1, keepdims=True)
+    y_pred_aligned = (tf.matmul(y_pred_m, Rot) + QC) * mask
+    total_row = tf.reduce_sum(mask, axis=[1, 2])
     loss = tf.math.squared_difference(y_pred_aligned, y_true)
-    loss = tf.reduce_sum(loss, axis=-1)
-    loss = tf.reduce_sum(loss, axis=-1) / tf.squeeze(total_row)
+    loss = tf.reduce_sum(loss, axis=[1, 2]) / total_row
     # [BATCH,]
     loss = tf.math.sqrt(loss)
     return loss
