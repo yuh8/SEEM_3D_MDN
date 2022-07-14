@@ -106,7 +106,7 @@ class TransVAE(Model):
             z_mean, z_log_var, r_pred = self(X, training=True)
             kl_loss = loss_func_kl(z_mean, z_log_var)
             rec_loss = loss_func_r(r_true, r_pred)
-            loss = 1e-5 * kl_loss + rec_loss
+            loss = 1e-3 * kl_loss + rec_loss
 
         # Compute gradients
         trainable_vars = self.trainable_variables
@@ -141,6 +141,7 @@ class TransVAE(Model):
 def data_iterator_train():
     num_files = len(glob.glob(train_path + 'GDR_*.npz'))
     batch_nums = np.arange(num_files)
+    np.random.shuffle(batch_nums)
     while True:
         np.random.shuffle(batch_nums)
         for batch in batch_nums:
@@ -211,7 +212,6 @@ if __name__ == "__main__":
     optimizer = get_optimizer()
     transvae.compile(optimizer=get_optimizer(), metrics=get_metrics())
     transvae.summary()
-    breakpoint()
 
     try:
         transvae.load_weights("./checkpoints/TransVAE/")
@@ -246,17 +246,17 @@ if __name__ == "__main__":
     test_dataset = test_dataset.batch(VAL_BATCH_SIZE, drop_remainder=True).map(_fixup_shape)
     test_dataset = test_dataset.prefetch(tf.data.experimental.AUTOTUNE)
 
-    # transvae.fit(train_dataset,
-    #              epochs=50,
-    #              validation_data=val_dataset,
-    #              validation_steps=val_steps,
-    #              callbacks=callbacks,
-    #              steps_per_epoch=train_steps)
+    transvae.fit(train_dataset,
+                 epochs=100,
+                 validation_data=val_dataset,
+                 validation_steps=val_steps,
+                 callbacks=callbacks,
+                 steps_per_epoch=train_steps)
     res = transvae.evaluate(test_dataset,
                             return_dict=True)
 
     # save trained model in two ways
-    g_net.compile(optimizer='adam', loss=None)
+    g_net.compile(optimizer='SGD', loss=None)
     g_net.save('g_net/' + 'GNet')
     gdr_net.compile(optimizer='adam', loss=None)
     gdr_net.save('gr_net/' + 'GDRNet')
