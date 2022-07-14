@@ -106,7 +106,7 @@ class TransVAE(Model):
             z_mean, z_log_var, r_pred = self(X, training=True)
             kl_loss = loss_func_kl(z_mean, z_log_var)
             rec_loss = loss_func_r(r_true, r_pred)
-            loss = 1e-3 * kl_loss + rec_loss
+            loss = 1e-5 * kl_loss + rec_loss
 
         # Compute gradients
         trainable_vars = self.trainable_variables

@@ -182,8 +182,6 @@ def get_gdr_net():
         # (batch_size, num_atoms, d_model)
         x = EncoderLayer(d_model=HIDDEN_SIZE, num_heads=NUM_HEADS, dff=DFF)(x, x, mask=mask)
 
-    x = GraphEmbed(d_model=1, kernel_width=1)(x[..., tf.newaxis])
-    x = tf.transpose(x, perm=[0, 2, 1])
     # [batch_size, num_atoms, d_model * 2] mean and variance of v to decoder
     z_mean = tf.keras.layers.Dense(HIDDEN_SIZE)(x)
     z_logvar = tf.keras.layers.Dense(HIDDEN_SIZE)(x)
@@ -195,9 +193,9 @@ def get_decode_net():
     # [batch_size, num_atoms, d_model]
     inputs = tf.keras.layers.Input(shape=(MAX_NUM_ATOMS, HIDDEN_SIZE))
     mask = tf.keras.layers.Input(shape=(1, 1, MAX_NUM_ATOMS))
-    v = tf.keras.layers.Input(shape=(1, HIDDEN_SIZE))
-    x = inputs + v
-    for _ in range(NUM_LAYERS):
+    v = tf.keras.layers.Input(shape=(MAX_NUM_ATOMS, HIDDEN_SIZE))
+    x = EncoderLayer(d_model=HIDDEN_SIZE, num_heads=NUM_HEADS, dff=DFF)(inputs, v, mask=mask)
+    for _ in range(NUM_LAYERS - 1):
         # (batch_size, num_atoms, d_model)
         x = EncoderLayer(d_model=HIDDEN_SIZE, num_heads=NUM_HEADS, dff=DFF)(x, x, mask=mask)
 
