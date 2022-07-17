@@ -1,3 +1,5 @@
 checkpoints/
 *.png
 __pycache__/
+logs/
+*_net/

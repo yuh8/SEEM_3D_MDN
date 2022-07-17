@@ -1,12 +1,15 @@
 import glob
 import numpy as np
 import tensorflow as tf
+import tensorflow.keras.backend as K
 from tensorflow import keras
 from tensorflow.keras import Model
+from tensorflow.keras import callbacks
 from multiprocessing import freeze_support
 from src.embed_utils import get_g_net, get_gdr_net, get_decode_net
 from src.misc_utils import create_folder, align_conf, tf_contriod
-from src.CONSTS import MAX_NUM_ATOMS, FEATURE_DEPTH, BATCH_SIZE, VAL_BATCH_SIZE
+from src.CONSTS import (MAX_NUM_ATOMS, FEATURE_DEPTH, BATCH_SIZE, VAL_BATCH_SIZE,
+                        MIN_KL_WEIGHT, MAX_KL_WEIGHT, MAX_EPOCH)
 
 np.set_printoptions(threshold=np.inf)
 np.set_printoptions(linewidth=1000)
@@ -90,12 +93,33 @@ def get_metrics():
     return kl, r_rmsd
 
 
+class WeightAdjuster(callbacks.Callback):
+    def __init__(self, weight, change_epoch):
+        """
+        Args:
+        weights (list): list of loss weights
+        change_epoch (int): epoch number for weight change
+        """
+        self.kl_weight = weight
+        self.change_epoch = change_epoch
+
+    def on_epoch_end(self, epoch, logs={}):
+        if epoch >= self.change_epoch:
+            # Updated loss weights
+            _value = MIN_KL_WEIGHT + \
+                (MAX_KL_WEIGHT - MIN_KL_WEIGHT) / (MAX_EPOCH - self.change_epoch - 10) * \
+                (epoch - self.change_epoch)
+            set_value = min(MAX_KL_WEIGHT, _value)
+            K.set_value(self.kl_weight, set_value)
+
+
 class TransVAE(Model):
-    def compile(self, optimizer, metrics):
+    def compile(self, optimizer, metrics, kl_weight):
         super(TransVAE, self).compile()
         self.optimizer = optimizer
         self.kl = metrics[0]
         self.r_rmsd = metrics[1]
+        self.kl_weight = kl_weight
 
     def train_step(self, data):
         X = data[0]
@@ -106,7 +130,7 @@ class TransVAE(Model):
             z_mean, z_log_var, r_pred = self(X, training=True)
             kl_loss = loss_func_kl(z_mean, z_log_var)
             rec_loss = loss_func_r(r_true, r_pred)
-            loss = 1e-5 * kl_loss + rec_loss
+            loss = self.kl_weight * kl_loss + rec_loss
 
         # Compute gradients
         trainable_vars = self.trainable_variables
@@ -117,8 +141,11 @@ class TransVAE(Model):
 
         self.kl.update_state(kl_loss)
         self.r_rmsd.update_state(rec_loss)
+        tf.summary.scalar('kl_loss', tf.reduce_mean(kl_loss))
+        tf.summary.scalar('rmsd_loss', tf.reduce_mean(rec_loss))
         return {"kl_loss": self.kl.result(),
-                "r_rmsd": self.r_rmsd.result()}
+                "r_rmsd": self.r_rmsd.result(),
+                "kl_weight": self.kl_weight}
 
     def test_step(self, data):
         X = data[0]
@@ -197,20 +224,29 @@ if __name__ == "__main__":
     train_steps = len(glob.glob(train_path + 'GDR_*.npz')) // BATCH_SIZE
     val_steps = len(glob.glob(val_path + 'GDR_*.npz')) // VAL_BATCH_SIZE
 
+    # get models
+    g_net = get_g_net()
+    gdr_net = get_gdr_net()
+    dec_net = get_decode_net()
+
+    # callbacks
+    kl_weight = K.variable(1e-5)
+    kl_weight._trainable = False
+    weight_adjuster = WeightAdjuster(kl_weight, 10)
     callbacks = [tf.keras.callbacks.ModelCheckpoint(ckpt_path,
                                                     save_freq=1000,
                                                     save_weights_only=True,
                                                     monitor='r_rmsd',
                                                     mode='min',
-                                                    save_best_only=True)]
-    g_net = get_g_net()
-    gdr_net = get_gdr_net()
-    dec_net = get_decode_net()
+                                                    save_best_only=True),
+                 tf.keras.callbacks.TensorBoard('./logs', update_freq=10),
+                 weight_adjuster]
 
+    # compile model
     X, z_mean, z_log_var, r_pred = core_model()
     transvae = TransVAE(inputs=X, outputs=[z_mean, z_log_var, r_pred])
     optimizer = get_optimizer()
-    transvae.compile(optimizer=get_optimizer(), metrics=get_metrics())
+    transvae.compile(optimizer=get_optimizer(), metrics=get_metrics(), kl_weight=kl_weight)
     transvae.summary()
 
     try:
@@ -247,7 +283,7 @@ if __name__ == "__main__":
     test_dataset = test_dataset.prefetch(tf.data.experimental.AUTOTUNE)
 
     transvae.fit(train_dataset,
-                 epochs=100,
+                 epochs=MAX_EPOCH,
                  validation_data=val_dataset,
                  validation_steps=val_steps,
                  callbacks=callbacks,
@@ -255,7 +291,7 @@ if __name__ == "__main__":
     res = transvae.evaluate(test_dataset,
                             return_dict=True)
 
-    # save trained model in two ways
+    # save trained model
     g_net.compile(optimizer='SGD', loss=None)
     g_net.save('g_net/' + 'GNet')
     gdr_net.compile(optimizer='adam', loss=None)

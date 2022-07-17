@@ -67,21 +67,15 @@ def get_prediction(mol, sample_size):
     mol_origin = deepcopy(mol)
     gr, _ = mol_to_tensor(mol_origin)
     g = np.expand_dims(gr, axis=0)[..., :-4]
-    gdr = np.expand_dims(gr, axis=0)
     mask = np.sum(np.abs(g), axis=-1)
     mask = np.sum(mask, axis=1, keepdims=True) <= 0
     mask = np.expand_dims(mask, axis=1).astype(np.float32)
-    r_pred = []
-    for _ in range(sample_size):
-        # h = g_net(g, training=False).numpy()
-        h = g_net.predict(g)
-        z_mean, z_logvar, z = gr_net.predict(gdr)
-        breakpoint()
-        # h = np.tile(h, [sample_size, 1, 1])
-        # z = np.tile(z, [sample_size, 1, 1])
-        # z = np.random.normal(0, 1, size=(sample_size, MAX_NUM_ATOMS, HIDDEN_SIZE))
-        _r_pred = decoder_net.predict([h, mask, z]) * (1 - np.squeeze(mask)[..., np.newaxis])
-        r_pred.append(_r_pred)
+    h = g_net.predict(g)
+    h = np.tile(h, [sample_size, 1, 1])
+    mask = np.tile(mask, [sample_size, 1, 1, 1])
+    z = np.random.normal(0, 1, size=(sample_size, MAX_NUM_ATOMS, HIDDEN_SIZE))
+    with tf.device('/cpu:0'):
+        r_pred = decoder_net.predict([h, mask, z]) * (1 - np.squeeze(mask)[..., np.newaxis])
     return r_pred
 
 
@@ -115,8 +109,6 @@ def compute_cov_mat(smiles_path):
         except:
             continue
 
-        breakpoint()
-
         num_gens = conf_df.shape[0] * 2
         cov_mat = np.zeros((conf_df.shape[0], num_gens))
         # MMFFOptimizeMoleculeConfs(mol_pred)
@@ -129,16 +121,11 @@ def compute_cov_mat(smiles_path):
                 mol_ref = deepcopy(mol_row.rd_mol)
                 for j in range(num_gens):
                     _conf = mol_prob.GetConformer()
-                    r_true = deepcopy(mol_ref.GetConformer().GetPositions())[np.newaxis, ...]
-                    # for i in range(mol_prob.GetNumAtoms()):
-                    #     x, y, z = np.double(r_pred[j][0][i])
-                    #     _conf.SetAtomPosition(i, Point3D(x, y, z))
-                    # pickle_save([mol_prob], 'generated_confs.pkl')
-                    _r_pred = r_pred[j][:, :mol_prob.GetNumAtoms()]
-                    rmsd = kabsch_rmsd(_r_pred, r_true)
-                    # rmsd = get_best_RMSD(mol_prob, mol_ref)
+                    for i in range(mol_prob.GetNumAtoms()):
+                        x, y, z = np.double(r_pred[j][i])
+                        _conf.SetAtomPosition(i, Point3D(x, y, z))
+                    rmsd = get_best_RMSD(mol_prob, mol_ref)
                     cov_mat[cnt, j] = rmsd
-                breakpoint()
                 cnt += 1
         except:
             continue
