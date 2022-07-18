@@ -1,5 +1,4 @@
 import json
-from os import spawnlp
 import pickle
 from random import shuffle
 import numpy as np
@@ -13,10 +12,8 @@ from rdkit.Geometry import Point3D
 from rdkit.Chem.Draw import MolsToGridImage
 from rdkit.Chem.rdmolops import RemoveHs
 from rdkit.Chem.rdMolAlign import GetBestRMS
-from rdkit.Chem.rdForceFieldHelpers import MMFFOptimizeMoleculeConfs
 from src.data_process_utils import mol_to_tensor
-from src.bound_utils import embed_conformer
-from src.misc_utils import load_json_model, create_folder, pickle_load, pickle_save, kabsch_rmsd
+from src.misc_utils import pickle_load
 from src.CONSTS import HIDDEN_SIZE, MAX_NUM_ATOMS, TF_EPS
 
 tfd = tfp.distributions
@@ -139,7 +136,7 @@ def compute_cov_mat(smiles_path):
 
 if __name__ == "__main__":
     freeze_support()
-    g_net, decoder_net, gr_net = load_models()
+    g_net, decoder_net, _ = load_models()
     test_path = '/mnt/transvae/test_data/test_batch/'
 
     compute_cov_mat(test_path + 'smiles.pkl')

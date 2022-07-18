@@ -1,4 +1,5 @@
 import glob
+import math
 import numpy as np
 import tensorflow as tf
 import tensorflow.keras.backend as K
@@ -9,7 +10,7 @@ from multiprocessing import freeze_support
 from src.embed_utils import get_g_net, get_gdr_net, get_decode_net
 from src.misc_utils import create_folder, align_conf, tf_contriod
 from src.CONSTS import (MAX_NUM_ATOMS, FEATURE_DEPTH, BATCH_SIZE, VAL_BATCH_SIZE,
-                        MIN_KL_WEIGHT, MAX_KL_WEIGHT, MAX_EPOCH)
+                        MIN_KL_WEIGHT, MAX_KL_WEIGHT, MAX_EPOCH, Q_PERIOD, CYCLE_PERIOD)
 
 np.set_printoptions(threshold=np.inf)
 np.set_printoptions(linewidth=1000)
@@ -67,9 +68,9 @@ def loss_func_kl(z_mean, z_logvar):
     return kl_loss
 
 
-class WarmCosine(tf.keras.optimizers.schedules.LearningRateSchedule):
+class WarmDecay(tf.keras.optimizers.schedules.LearningRateSchedule):
     def __init__(self, warmup_steps=4000):
-        super(WarmCosine, self).__init__()
+        super(WarmDecay, self).__init__()
         self.d_model = 9216
         self.d_model = tf.cast(self.d_model, tf.float32)
 
@@ -83,7 +84,7 @@ class WarmCosine(tf.keras.optimizers.schedules.LearningRateSchedule):
 
 
 def get_optimizer():
-    opt_op = tf.keras.optimizers.Adam(learning_rate=WarmCosine(), clipnorm=0.5)
+    opt_op = tf.keras.optimizers.Adam(learning_rate=WarmDecay(), clipnorm=0.5)
     return opt_op
 
 
@@ -93,24 +94,31 @@ def get_metrics():
     return kl, r_rmsd
 
 
+def cosine_cycle(x):
+    r = MAX_KL_WEIGHT - MIN_KL_WEIGHT
+    if x <= Q_PERIOD:
+        y = r * (1 - np.cos(math.pi * x / Q_PERIOD)) / 2 + MIN_KL_WEIGHT
+    else:
+        y = MAX_KL_WEIGHT
+    return y
+
+
 class WeightAdjuster(callbacks.Callback):
-    def __init__(self, weight, change_epoch):
+    def __init__(self, weight, change_batch):
         """
         Args:
         weights (list): list of loss weights
         change_epoch (int): epoch number for weight change
         """
         self.kl_weight = weight
-        self.change_epoch = change_epoch
+        self.change_batch = change_batch
+        self.train_iter = 0
 
-    def on_epoch_end(self, epoch, logs={}):
-        if epoch >= self.change_epoch:
-            # Updated loss weights
-            _value = MIN_KL_WEIGHT + \
-                (MAX_KL_WEIGHT - MIN_KL_WEIGHT) / (MAX_EPOCH - self.change_epoch - 10) * \
-                (epoch - self.change_epoch)
-            set_value = min(MAX_KL_WEIGHT, _value)
-            K.set_value(self.kl_weight, set_value)
+    def on_train_batch_begin(self, batch, logs={}):
+        # Updated loss weights
+        set_value = cosine_cycle(self.train_iter % self.change_batch)
+        K.set_value(self.kl_weight, set_value)
+        self.train_iter += 1
 
 
 class TransVAE(Model):
@@ -141,8 +149,6 @@ class TransVAE(Model):
 
         self.kl.update_state(kl_loss)
         self.r_rmsd.update_state(rec_loss)
-        tf.summary.scalar('kl_loss', tf.reduce_mean(kl_loss))
-        tf.summary.scalar('rmsd_loss', tf.reduce_mean(rec_loss))
         return {"kl_loss": self.kl.result(),
                 "r_rmsd": self.r_rmsd.result(),
                 "kl_weight": self.kl_weight}
@@ -230,9 +236,9 @@ if __name__ == "__main__":
     dec_net = get_decode_net()
 
     # callbacks
-    kl_weight = K.variable(1e-5)
+    kl_weight = K.variable(MIN_KL_WEIGHT)
     kl_weight._trainable = False
-    weight_adjuster = WeightAdjuster(kl_weight, 10)
+    weight_adjuster = WeightAdjuster(kl_weight, CYCLE_PERIOD)
     callbacks = [tf.keras.callbacks.ModelCheckpoint(ckpt_path,
                                                     save_freq=1000,
                                                     save_weights_only=True,
