@@ -71,7 +71,7 @@ def loss_func_kl(z_mean, z_logvar):
 class WarmDecay(tf.keras.optimizers.schedules.LearningRateSchedule):
     def __init__(self, warmup_steps=4000):
         super(WarmDecay, self).__init__()
-        self.d_model = 9216
+        self.d_model = 10636
         self.d_model = tf.cast(self.d_model, tf.float32)
 
         self.warmup_steps = warmup_steps
@@ -84,7 +84,7 @@ class WarmDecay(tf.keras.optimizers.schedules.LearningRateSchedule):
 
 
 def get_optimizer():
-    opt_op = tf.keras.optimizers.Adam(learning_rate=WarmDecay(), clipnorm=0.5)
+    opt_op = tf.keras.optimizers.Adam(learning_rate=WarmDecay(), clipnorm=1)
     return opt_op
 
 
@@ -241,11 +241,8 @@ if __name__ == "__main__":
     weight_adjuster = WeightAdjuster(kl_weight, CYCLE_PERIOD)
     callbacks = [tf.keras.callbacks.ModelCheckpoint(ckpt_path,
                                                     save_freq=1000,
-                                                    save_weights_only=True,
-                                                    monitor='r_rmsd',
-                                                    mode='min',
-                                                    save_best_only=True),
-                 tf.keras.callbacks.TensorBoard('./logs', update_freq=10),
+                                                    save_weights_only=True),
+                 tf.keras.callbacks.TensorBoard('./logs_300', update_freq=10),
                  weight_adjuster]
 
     # compile model
