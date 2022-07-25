@@ -71,7 +71,7 @@ def loss_func_kl(z_mean, z_logvar):
 class WarmDecay(tf.keras.optimizers.schedules.LearningRateSchedule):
     def __init__(self, warmup_steps=4000):
         super(WarmDecay, self).__init__()
-        self.d_model = 10636
+        self.d_model = 9612
         self.d_model = tf.cast(self.d_model, tf.float32)
 
         self.warmup_steps = warmup_steps
@@ -103,20 +103,27 @@ def cosine_cycle(x):
     return y
 
 
+def step_increment(x):
+    pw = x // Q_PERIOD
+    y = MIN_KL_WEIGHT * np.power(2, pow)
+    return y
+
+
 class WeightAdjuster(callbacks.Callback):
-    def __init__(self, weight, change_batch):
+    def __init__(self, weight, change_epoch):
         """
         Args:
         weights (list): list of loss weights
         change_epoch (int): epoch number for weight change
         """
         self.kl_weight = weight
-        self.change_batch = change_batch
+        self.change_epoch = change_epoch
         self.train_iter = 0
 
-    def on_train_batch_begin(self, batch, logs={}):
+    def on_epoch_begin(self, epoch, logs={}):
         # Updated loss weights
-        set_value = cosine_cycle(self.train_iter % self.change_batch)
+        # set_value = cosine_cycle(self.train_iter % self.change_batch)
+        set_value = step_increment(epoch)
         K.set_value(self.kl_weight, set_value)
         self.train_iter += 1
 
@@ -238,7 +245,7 @@ if __name__ == "__main__":
     # callbacks
     kl_weight = K.variable(MIN_KL_WEIGHT)
     kl_weight._trainable = False
-    weight_adjuster = WeightAdjuster(kl_weight, CYCLE_PERIOD)
+    weight_adjuster = WeightAdjuster(kl_weight, 20)
     callbacks = [tf.keras.callbacks.ModelCheckpoint(ckpt_path,
                                                     save_freq=1000,
                                                     save_weights_only=True),

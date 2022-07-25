@@ -9,12 +9,14 @@ class GraphEmbed(tf.keras.layers.Layer):
         self.d_model = d_model
         self.kernel_width = kernel_width
         self.pad = tf.keras.layers.ZeroPadding2D(padding=[0, 1])
+        self.layernorm = tf.keras.layers.LayerNormalization(epsilon=1e-6)
         self.dropout = tf.keras.layers.Dropout(rate)
 
     def build(self, input_shape):
         self.kernel_size = [input_shape[1], self.kernel_width]
         self.embed = tf.keras.layers.Conv2D(self.d_model,
                                             kernel_size=self.kernel_size,
+                                            activation='relu',
                                             padding='valid')
 
     def call(self, x, training):
@@ -26,6 +28,7 @@ class GraphEmbed(tf.keras.layers.Layer):
             x = self.pad(x)
         # [batch_size, num_atoms, d_model]
         x = tf.reduce_sum(self.embed(x), axis=1)
+        x = self.layernorm(x)
         x = self.dropout(x, training)
         return x
 
