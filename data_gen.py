@@ -95,8 +95,8 @@ def get_num_atoms_dist():
         num_atoms.append(conf_df.iloc[0].rd_mol.GetNumAtoms())
 
         if len(num_atoms) % 1000 == 0:
-            pct_95 = np.percentile(num_atoms, 95)
-            print("{0}/{1} done with 95 pct {2}".format(idx, len(all_simles), pct_95))
+            pct_98 = np.percentile(num_atoms, 98)
+            print("{0}/{1} done with 98 pct {2}".format(idx, len(all_simles), pct_98))
 
     breakpoint()
 

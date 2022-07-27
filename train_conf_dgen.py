@@ -106,8 +106,8 @@ def cosine_cycle(x):
 def step_increment(x):
     pw = x // Q_PERIOD
     y = MIN_KL_WEIGHT * np.power(2, pw)
-    if y > 0.02:
-        y = 0.02
+    if y > MAX_KL_WEIGHT:
+        y = MAX_KL_WEIGHT
     return y
 
 

@@ -103,7 +103,7 @@ def mol_to_tensor(mol):
         atom_idx = atom.GetIdx()
         node_feature = get_node_feature(mol, atom_idx)
         smi_graph[atom_idx, atom_idx, :len(node_feature)] = node_feature
-        smi_graph[atom_idx, atom_idx, -4:-1] = conf.GetAtomPosition(atom_idx)
+        smi_graph[atom_idx, atom_idx, -3:] = conf.GetAtomPosition(atom_idx)
         R[atom_idx, :] = conf.GetAtomPosition(atom_idx)
 
     for (source_idx, sink_idx) in graph.edges:
@@ -115,8 +115,8 @@ def mol_to_tensor(mol):
 
         smi_graph[source_idx, sink_idx, len(node_feature):-4] = edge_feature
         smi_graph[sink_idx, source_idx, len(node_feature):-4] = edge_feature
-        smi_graph[source_idx, sink_idx, -1] = dist
-        smi_graph[sink_idx, source_idx, -1] = dist
+        smi_graph[source_idx, sink_idx, -4] = dist
+        smi_graph[sink_idx, source_idx, -4] = dist
 
     return smi_graph, R
 

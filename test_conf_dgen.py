@@ -123,11 +123,13 @@ def compute_cov_mat(smiles_path):
             continue
 
         num_gens = conf_df.shape[0] * 2
+        if num_gens > 10000:
+            continue
         cov_mat = np.zeros((conf_df.shape[0], num_gens))
 
         cnt = 0
         try:
-            mol_probs = get_mol_probs(mol_pred, r_pred, num_gens)
+            mol_probs = get_mol_probs(mol_pred, r_pred, num_gens, FF=False)
             for _, mol_row in conf_df.iterrows():
                 mol_ref = deepcopy(mol_row.rd_mol)
                 for j in range(num_gens):
@@ -138,7 +140,7 @@ def compute_cov_mat(smiles_path):
             continue
         cov_score = np.mean(cov_mat.min(-1) < 1.25)
         mat_score = np.sum(cov_mat.min(-1)) / conf_df.shape[0]
-        print('cov_score and mat_score for smiles {0} is {1} and {2}'.format(idx, cov_score, mat_score))
+        print('cov_score and mat_score for smiles {0} is {1} and {2} with num_gen {3}'.format(idx, cov_score, mat_score, num_gens))
         covs.append(cov_score)
         mats.append(mat_score)
     breakpoint()
