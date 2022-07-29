@@ -3,14 +3,15 @@ import math
 import numpy as np
 import tensorflow as tf
 import tensorflow.keras.backend as K
+from random import shuffle
 from tensorflow import keras
 from tensorflow.keras import Model
 from tensorflow.keras import callbacks
 from multiprocessing import freeze_support
 from src.embed_utils import get_g_net, get_gdr_net, get_decode_net
-from src.misc_utils import create_folder, align_conf, tf_contriod
+from src.misc_utils import create_folder
 from src.CONSTS import (MAX_NUM_ATOMS, FEATURE_DEPTH, BATCH_SIZE, VAL_BATCH_SIZE,
-                        MIN_KL_WEIGHT, MAX_KL_WEIGHT, MAX_EPOCH, Q_PERIOD, CYCLE_PERIOD)
+                        MIN_KL_WEIGHT, MAX_KL_WEIGHT, MAX_EPOCH, Q_PERIOD)
 
 np.set_printoptions(threshold=np.inf)
 np.set_printoptions(linewidth=1000)
@@ -46,15 +47,8 @@ def loss_func_r(y_true, y_pred):
     # [B,N,1]
     mask = tf.cast(tf.reduce_sum(tf.abs(y_true), axis=-1, keepdims=True) > 0, tf.float32)
     y_pred *= mask
-    Rot = tf.stop_gradient(tf.py_function(align_conf,
-                                          inp=[y_pred, y_true, mask],
-                                          Tout=tf.float32))
-    QC = tf_contriod(y_true, mask)
-    PC = tf_contriod(y_pred, mask)
-    y_pred_m = (y_pred - PC) * mask
-    y_pred_aligned = (tf.matmul(y_pred_m, Rot) + QC) * mask
     total_row = tf.reduce_sum(mask, axis=[1, 2])
-    loss = tf.math.squared_difference(y_pred_aligned, y_true)
+    loss = tf.math.squared_difference(y_pred, y_true)
     loss = tf.reduce_sum(loss, axis=[1, 2]) / total_row
     # [BATCH,]
     loss = tf.math.sqrt(loss)
@@ -130,9 +124,9 @@ class WeightAdjuster(callbacks.Callback):
         self.train_iter += 1
 
 
-class TransVAE(Model):
+class TransROOT(Model):
     def compile(self, optimizer, metrics, kl_weight):
-        super(TransVAE, self).compile()
+        super(TransROOT, self).compile()
         self.optimizer = optimizer
         self.kl = metrics[0]
         self.r_rmsd = metrics[1]
@@ -181,40 +175,36 @@ class TransVAE(Model):
 
 
 def data_iterator_train():
-    num_files = len(glob.glob(train_path + 'GDR_*.npz'))
-    batch_nums = np.arange(num_files)
-    np.random.shuffle(batch_nums)
     while True:
-        np.random.shuffle(batch_nums)
-        for batch in batch_nums:
-            f_name = train_path + f'GDR_{batch}.npz'
+        np.random.shuffle(train_list)
+        for f_name in train_list:
             GDR = np.load(f_name)
             G = GDR['G']
             R = GDR['R']
+            for i in range(MAX_NUM_ATOMS):
+                G[i, i, -3:] = R[i, :]
             yield G, R
 
 
 def data_iterator_val():
-    num_files = len(glob.glob(val_path + 'GDR_*.npz'))
-    batch_nums = np.arange(num_files)
     while True:
-        np.random.shuffle(batch_nums)
-        for batch in batch_nums:
-            f_name = val_path + f'GDR_{batch}.npz'
+        np.random.shuffle(val_list)
+        for f_name in val_list:
             GDR = np.load(f_name)
             G = GDR['G']
             R = GDR['R']
+            for i in range(MAX_NUM_ATOMS):
+                G[i, i, -3:] = R[i, :]
             yield G, R
 
 
 def data_iterator_test():
-    num_files = len(glob.glob(test_path + 'GDR_*.npz'))
-    batch_nums = np.arange(num_files)
-    for batch in batch_nums:
-        f_name = test_path + f'GDR_{batch}.npz'
+    for f_name in test_list:
         GDR = np.load(f_name)
         G = GDR['G']
         R = GDR['R']
+        for i in range(MAX_NUM_ATOMS):
+            G[i, i, -3:] = R[i, :]
         yield G, R
 
 
@@ -226,18 +216,20 @@ def _fixup_shape(x, y):
 
 if __name__ == "__main__":
     freeze_support()
-    ckpt_path = 'checkpoints/TransVAE/'
+    ckpt_path = 'checkpoints/TransRoot/'
     create_folder(ckpt_path)
-    create_folder("TransVAE")
     create_folder("dec_net")
     create_folder("gdr_net")
     create_folder("g_net")
-    train_path = '/mnt/transvae/train_data/train_batch/'
-    val_path = '/mnt/transvae/test_data/val_batch/'
-    test_path = '/mnt/transvae/test_data/test_batch/'
+    train_path = '/mnt/drugs_processed/'
+    full_list = glob.glob(train_path + 'GDR_*.npz')
+    shuffle(full_list)
+    train_list = full_list[:200000]
+    val_list = full_list[-2500:]
+    test_list = full_list[200000:220000]
 
-    train_steps = len(glob.glob(train_path + 'GDR_*.npz')) // BATCH_SIZE
-    val_steps = len(glob.glob(val_path + 'GDR_*.npz')) // VAL_BATCH_SIZE
+    train_steps = len(train_list) // BATCH_SIZE
+    val_steps = len(val_list) // VAL_BATCH_SIZE
 
     # get models
     g_net = get_g_net()
@@ -256,13 +248,13 @@ if __name__ == "__main__":
 
     # compile model
     X, z_mean, z_log_var, r_pred = core_model()
-    transvae = TransVAE(inputs=X, outputs=[z_mean, z_log_var, r_pred])
+    transroot = TransROOT(inputs=X, outputs=[z_mean, z_log_var, r_pred])
     optimizer = get_optimizer()
-    transvae.compile(optimizer=get_optimizer(), metrics=get_metrics(), kl_weight=kl_weight)
-    transvae.summary()
+    transroot.compile(optimizer=get_optimizer(), metrics=get_metrics(), kl_weight=kl_weight)
+    transroot.summary()
 
     try:
-        transvae.load_weights("./checkpoints/TransVAE/")
+        transroot.load_weights("./checkpoints/TransRoot/")
     except:
         print('no exitsing model detected, training starts afresh')
         pass
@@ -294,14 +286,14 @@ if __name__ == "__main__":
     test_dataset = test_dataset.batch(VAL_BATCH_SIZE, drop_remainder=True).map(_fixup_shape)
     test_dataset = test_dataset.prefetch(tf.data.experimental.AUTOTUNE)
 
-    transvae.fit(train_dataset,
-                 epochs=MAX_EPOCH,
-                 validation_data=val_dataset,
-                 validation_steps=val_steps,
-                 callbacks=callbacks,
-                 steps_per_epoch=train_steps)
-    res = transvae.evaluate(test_dataset,
-                            return_dict=True)
+    transroot.fit(train_dataset,
+                  epochs=MAX_EPOCH,
+                  validation_data=val_dataset,
+                  validation_steps=val_steps,
+                  callbacks=callbacks,
+                  steps_per_epoch=train_steps)
+    res = transroot.evaluate(test_dataset,
+                             return_dict=True)
 
     # save trained model
     g_net.compile(optimizer='SGD', loss=None)
