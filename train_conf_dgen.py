@@ -218,9 +218,9 @@ if __name__ == "__main__":
     freeze_support()
     ckpt_path = 'checkpoints/TransRoot/'
     create_folder(ckpt_path)
-    create_folder("dec_net")
-    create_folder("gdr_net")
-    create_folder("g_net")
+    create_folder("dec_net_root")
+    create_folder("gdr_net_root")
+    create_folder("g_net_root")
     train_path = '/mnt/drugs_processed/'
     full_list = glob.glob(train_path + 'GDR_*.npz')
     shuffle(full_list)
@@ -286,19 +286,19 @@ if __name__ == "__main__":
     test_dataset = test_dataset.batch(VAL_BATCH_SIZE, drop_remainder=True).map(_fixup_shape)
     test_dataset = test_dataset.prefetch(tf.data.experimental.AUTOTUNE)
 
-    transroot.fit(train_dataset,
-                  epochs=MAX_EPOCH,
-                  validation_data=val_dataset,
-                  validation_steps=val_steps,
-                  callbacks=callbacks,
-                  steps_per_epoch=train_steps)
+    # transroot.fit(train_dataset,
+    #               epochs=MAX_EPOCH,
+    #               validation_data=val_dataset,
+    #               validation_steps=val_steps,
+    #               callbacks=callbacks,
+    #               steps_per_epoch=train_steps)
     res = transroot.evaluate(test_dataset,
                              return_dict=True)
 
     # save trained model
     g_net.compile(optimizer='SGD', loss=None)
-    g_net.save('g_net/' + 'GNet')
+    g_net.save('g_net_root/' + 'GNet')
     gdr_net.compile(optimizer='adam', loss=None)
-    gdr_net.save('gr_net/' + 'GDRNet')
+    gdr_net.save('gr_net_root/' + 'GDRNet')
     dec_net.compile(optimizer='adam', loss=None)
-    dec_net.save('dec_net/' + 'DecNet')
+    dec_net.save('dec_net_root/' + 'DecNet')

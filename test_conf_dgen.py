@@ -13,6 +13,7 @@ from rdkit.Chem.Draw import MolsToGridImage
 from rdkit.Chem.rdForceFieldHelpers import MMFFOptimizeMolecule
 from rdkit.Chem.rdmolops import RemoveHs
 from rdkit.Chem.rdMolAlign import GetBestRMS
+from get_global_pos_from_local import get_neighbour_info, get_global_pos
 from src.data_process_utils import mol_to_tensor
 from src.misc_utils import pickle_load
 from src.CONSTS import HIDDEN_SIZE, MAX_NUM_ATOMS, TF_EPS
@@ -21,26 +22,10 @@ tfd = tfp.distributions
 
 
 def load_models():
-    g_net = tf.keras.models.load_model('g_net/GNet/')
-    gr_net = tf.keras.models.load_model('gr_net/GDRNet/')
-    decoder_net = tf.keras.models.load_model('dec_net/DecNet/')
+    g_net = tf.keras.models.load_model('g_net_root/GNet/')
+    gr_net = tf.keras.models.load_model('gr_net_root/GDRNet/')
+    decoder_net = tf.keras.models.load_model('dec_net_root/DecNet/')
     return g_net, decoder_net, gr_net
-
-
-def loss_func(y_true, y_pred):
-    comp_weight, mean, log_std = tf.split(y_pred, 3, axis=-1)
-    comp_weight = tf.nn.softmax(comp_weight, axis=-1)
-    log_y_true = tf.math.log(y_true + TF_EPS)
-    dist = tfd.Normal(loc=mean, scale=tf.math.exp(log_std))
-    # [BATCH, MAX_NUM_ATOMS, MAX_NUM_ATOMS, NUM_COMPS]
-    _loss = comp_weight * dist.prob(log_y_true)
-    # [BATCH, MAX_NUM_ATOMS, MAX_NUM_ATOMS]
-    _loss = tf.reduce_sum(_loss, axis=-1)
-    _loss = tf.math.log(_loss + TF_EPS)
-    mask = tf.squeeze(tf.cast(y_true > 0, tf.float32))
-    _loss *= mask
-    loss = -tf.reduce_sum(_loss, axis=[1, 2])
-    return loss
 
 
 def plot_3d_scatter(pos):
@@ -83,8 +68,14 @@ def get_mol_probs(mol_pred, r_pred, num_gens, FF=True):
     for j in range(num_gens):
         mol_prob = deepcopy(mol_pred)
         _conf = mol_prob.GetConformer()
+        neighbour_index_dict, positioned_nodes, new_sequence, num_atoms = get_neighbour_info(mol_prob)
+        new_pos = get_global_pos(r_pred[j], positioned_nodes, num_atoms, new_sequence, neighbour_index_dict)
         for i in range(mol_prob.GetNumAtoms()):
-            x, y, z = np.double(r_pred[j][i])
+            x, y, z = np.double(new_pos[i])
+            if i == 0:
+                x = max(0, x)
+                y = max(0, y)
+                z = np.clip(z, 1e-5, np.pi - 1e-5)
             _conf.SetAtomPosition(i, Point3D(x, y, z))
         if FF:
             MMFFOptimizeMolecule(mol_prob)
@@ -117,14 +108,16 @@ def compute_cov_mat(smiles_path):
 
         mol_pred = deepcopy(conf_df.iloc[0].rd_mol)
 
+        num_gens = conf_df.shape[0] * 2
+        print(f'generating {num_gens} conformations')
+        if num_gens > 10000:
+            continue
+
         try:
-            r_pred = get_prediction(mol_pred, conf_df.shape[0] * 2)
+            r_pred = get_prediction(mol_pred, num_gens)
         except:
             continue
 
-        num_gens = conf_df.shape[0] * 2
-        if num_gens > 10000:
-            continue
         cov_mat = np.zeros((conf_df.shape[0], num_gens))
 
         cnt = 0
