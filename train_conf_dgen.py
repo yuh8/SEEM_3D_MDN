@@ -251,7 +251,7 @@ if __name__ == "__main__":
     callbacks = [tf.keras.callbacks.ModelCheckpoint(ckpt_path,
                                                     save_freq=1000,
                                                     save_weights_only=True),
-                 tf.keras.callbacks.TensorBoard('./logs_360', update_freq=10),
+                 tf.keras.callbacks.TensorBoard('./logs_vae_360', update_freq=10),
                  weight_adjuster]
 
     # compile model

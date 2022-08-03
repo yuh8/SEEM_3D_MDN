@@ -101,7 +101,7 @@ def compute_cov_mat(smiles_path):
     # shuffle(smiles)
     covs = []
     mats = []
-    for idx, smi in enumerate(smiles[:200]):
+    for idx, smi in enumerate(smiles[:300]):
         try:
             mol_path = "/mnt/rdkit_folder/" + drugs_summ[smi]['pickle_path']
             with open(mol_path, "rb") as f:
@@ -115,16 +115,17 @@ def compute_cov_mat(smiles_path):
         if conf_df.shape[0] < 1:
             continue
 
-        mol_pred = deepcopy(conf_df.iloc[0].rd_mol)
-
-        try:
-            r_pred = get_prediction(mol_pred, conf_df.shape[0] * 2)
-        except:
-            continue
-
         num_gens = conf_df.shape[0] * 2
         if num_gens > 10000:
             continue
+
+        mol_pred = deepcopy(conf_df.iloc[0].rd_mol)
+
+        try:
+            r_pred = get_prediction(mol_pred, num_gens)
+        except:
+            continue
+
         cov_mat = np.zeros((conf_df.shape[0], num_gens))
 
         cnt = 0
@@ -143,6 +144,8 @@ def compute_cov_mat(smiles_path):
         print('cov_score and mat_score for smiles {0} is {1} and {2} with num_gen {3}'.format(idx, cov_score, mat_score, num_gens))
         covs.append(cov_score)
         mats.append(mat_score)
+        if len(covs) >= 200:
+            break
     breakpoint()
 
 
