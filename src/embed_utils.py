@@ -10,6 +10,11 @@ class GraphEmbed(tf.keras.layers.Layer):
         self.kernel_width = kernel_width
         self.pad = tf.keras.layers.ZeroPadding2D(padding=[0, 1])
         self.layernorm = tf.keras.layers.LayerNormalization(epsilon=1e-6)
+        self.layernorm_1 = tf.keras.layers.LayerNormalization(epsilon=1e-6)
+        self.conv = tf.keras.layers.Conv2D(self.d_model,
+                                           kernel_size=[1, 3],
+                                           activation='relu',
+                                           padding='same')
         self.dropout = tf.keras.layers.Dropout(rate)
 
     def build(self, input_shape):
@@ -18,14 +23,6 @@ class GraphEmbed(tf.keras.layers.Layer):
                                             kernel_size=kernel_size,
                                             activation='relu',
                                             padding='valid')
-        self.conv_bnk = tf.keras.layers.Conv2D(self.d_model / 2,
-                                               kernel_size=1,
-                                               activation='relu',
-                                               padding='same')
-        self.conv = tf.keras.layers.Conv2D(self.d_model,
-                                           kernel_size=[1, 3],
-                                           activation='relu',
-                                           padding='same')
 
     def call(self, x, training):
         '''
@@ -36,10 +33,10 @@ class GraphEmbed(tf.keras.layers.Layer):
             x = self.pad(x)
         # [batch_size, num_atoms, d_model]
         x = self.embed(x)
-        x = self.conv_bnk(x)
+        x = self.layernorm(x)
         x = self.conv(x)
         x = tf.reduce_sum(x, axis=1)
-        x = self.layernorm(x)
+        x = self.layernorm_1(x)
         x = self.dropout(x, training)
         return x
 
