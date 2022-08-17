@@ -5,3 +5,4 @@ logs*/
 *_net/
 *_net_*/
 *.txt
+*.out
