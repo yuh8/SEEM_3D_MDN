@@ -21,9 +21,9 @@ tfd = tfp.distributions
 
 
 def load_models():
-    g_net = tf.keras.models.load_model('g_net/GNet/')
-    gr_net = tf.keras.models.load_model('gr_net/GDRNet/')
-    decoder_net = tf.keras.models.load_model('dec_net/DecNet/')
+    g_net = tf.keras.models.load_model('g_net_qm9/GNet/')
+    gr_net = tf.keras.models.load_model('gr_net_qm9/GDRNet/')
+    decoder_net = tf.keras.models.load_model('dec_net_qm9/DecNet/')
     return g_net, decoder_net, gr_net
 
 
@@ -93,7 +93,7 @@ def get_mol_probs(mol_pred, r_pred, num_gens, FF=True):
 
 
 def compute_cov_mat(smiles_path):
-    drugs_file = "/mnt/rdkit_folder/summary_drugs.json"
+    drugs_file = "/mnt/rdkit_folder/summary_qm9.json"
     with open(drugs_file, "r") as f:
         drugs_summ = json.load(f)
 
@@ -152,6 +152,6 @@ def compute_cov_mat(smiles_path):
 if __name__ == "__main__":
     freeze_support()
     g_net, decoder_net, _ = load_models()
-    test_path = '/mnt/transvae/test_data/test_batch/'
+    test_path = '/mnt/transvae_qm9/test_data/test_batch/'
 
     compute_cov_mat(test_path + 'smiles.pkl')

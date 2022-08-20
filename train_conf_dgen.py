@@ -226,15 +226,14 @@ def _fixup_shape(x, y):
 
 if __name__ == "__main__":
     freeze_support()
-    ckpt_path = 'checkpoints/TransVAE/'
+    ckpt_path = 'checkpoints/TransVAE_qm9/'
     create_folder(ckpt_path)
-    create_folder("TransVAE")
-    create_folder("dec_net")
-    create_folder("gdr_net")
-    create_folder("g_net")
-    train_path = '/mnt/transvae/train_data/train_batch/'
-    val_path = '/mnt/transvae/test_data/val_batch/'
-    test_path = '/mnt/transvae/test_data/test_batch/'
+    create_folder("dec_net_qm9")
+    create_folder("gdr_net_qm9")
+    create_folder("g_net_qm9")
+    train_path = '/mnt/transvae_qm9/train_data/train_batch/'
+    val_path = '/mnt/transvae_qm9/test_data/val_batch/'
+    test_path = '/mnt/transvae_qm9/test_data/test_batch/'
 
     train_steps = len(glob.glob(train_path + 'GDR_*.npz')) // BATCH_SIZE
     val_steps = len(glob.glob(val_path + 'GDR_*.npz')) // VAL_BATCH_SIZE
@@ -251,7 +250,7 @@ if __name__ == "__main__":
     callbacks = [tf.keras.callbacks.ModelCheckpoint(ckpt_path,
                                                     save_freq=1000,
                                                     save_weights_only=True),
-                 tf.keras.callbacks.TensorBoard('./logs_transvae', update_freq=10),
+                 tf.keras.callbacks.TensorBoard('./logs_transvae_qm9', update_freq=10),
                  weight_adjuster]
 
     # compile model
@@ -262,7 +261,7 @@ if __name__ == "__main__":
     transvae.summary()
 
     try:
-        transvae.load_weights("./checkpoints/TransVAE/")
+        transvae.load_weights("./checkpoints/TransVAE_qm9/")
     except:
         print('no exitsing model detected, training starts afresh')
         pass
@@ -305,8 +304,8 @@ if __name__ == "__main__":
 
     # save trained model
     g_net.compile(optimizer='SGD', loss=None)
-    g_net.save('g_net/' + 'GNet')
+    g_net.save('g_net_qm9/' + 'GNet')
     gdr_net.compile(optimizer='adam', loss=None)
-    gdr_net.save('gr_net/' + 'GDRNet')
+    gdr_net.save('gr_net_qm9/' + 'GDRNet')
     dec_net.compile(optimizer='adam', loss=None)
-    dec_net.save('dec_net/' + 'DecNet')
+    dec_net.save('dec_net_qm9/' + 'DecNet')
