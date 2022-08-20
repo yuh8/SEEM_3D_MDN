@@ -11,15 +11,15 @@ from src.CONSTS import NUM_CONFS_PER_MOL
 
 
 def get_train_val_test_smiles():
-    drugs_file = "/mnt/rdkit_folder/summary_drugs.json"
+    drugs_file = "/mnt/rdkit_folder/summary_qm9.json"
     with open(drugs_file, "r") as f:
         drugs_summ = json.load(f)
 
     all_simles = list(drugs_summ.keys())
     np.random.shuffle(all_simles)
-    create_folder('/mnt/transvae/train_data/train_batch/')
-    create_folder('/mnt/transvae/test_data/test_batch/')
-    create_folder('/mnt/transvae/test_data/val_batch/')
+    create_folder('/mnt/transvae_qm9/train_data/train_batch/')
+    create_folder('/mnt/transvae_qm9/test_data/test_batch/')
+    create_folder('/mnt/transvae_qm9/test_data/val_batch/')
 
     # train, val, test split
     smiles_train, smiles_test \
@@ -28,13 +28,13 @@ def get_train_val_test_smiles():
     smiles_train, smiles_val \
         = train_test_split(smiles_train, test_size=0.1, random_state=43)
 
-    pickle_save(smiles_train, '/mnt/transvae/train_data/train_batch/smiles.pkl')
-    pickle_save(smiles_test, '/mnt/transvae/test_data/test_batch/smiles.pkl')
-    pickle_save(smiles_val, '/mnt/transvae/test_data/val_batch/smiles.pkl')
+    pickle_save(smiles_train, '/mnt/transvae_qm9/train_data/train_batch/smiles.pkl')
+    pickle_save(smiles_test, '/mnt/transvae_qm9/test_data/test_batch/smiles.pkl')
+    pickle_save(smiles_val, '/mnt/transvae_qm9/test_data/val_batch/smiles.pkl')
 
 
 def get_and_save_data_batch(smiles_path, dest_data_path, batch_num=200000):
-    drugs_file = "/mnt/rdkit_folder/summary_drugs.json"
+    drugs_file = "/mnt/rdkit_folder/summary_qm9.json"
     with open(drugs_file, "r") as f:
         drugs_summ = json.load(f)
 
@@ -73,7 +73,7 @@ def get_and_save_data_batch(smiles_path, dest_data_path, batch_num=200000):
 
 
 def get_num_atoms_dist():
-    drugs_file = "/mnt/rdkit_folder/summary_drugs.json"
+    drugs_file = "/mnt/rdkit_folder/summary_qm9.json"
     with open(drugs_file, "r") as f:
         drugs_summ = json.load(f)
 
@@ -104,9 +104,9 @@ def get_num_atoms_dist():
 if __name__ == "__main__":
     # get_num_atoms_dist()
     get_train_val_test_smiles()
-    get_and_save_data_batch('/mnt/transvae/train_data/train_batch/smiles.pkl',
-                            '/mnt/transvae/train_data/train_batch/')
-    get_and_save_data_batch('/mnt/transvae/test_data/val_batch/smiles.pkl',
-                            '/mnt/transvae/test_data/val_batch/', batch_num=2500)
-    get_and_save_data_batch('/mnt/transvae/test_data/test_batch/smiles.pkl',
-                            '/mnt/transvae/test_data/test_batch/', batch_num=20000)
+    get_and_save_data_batch('/mnt/transvae_qm9/train_data/train_batch/smiles.pkl',
+                            '/mnt/transvae_qm9/train_data/train_batch/')
+    get_and_save_data_batch('/mnt/transvae_qm9/test_data/val_batch/smiles.pkl',
+                            '/mnt/transvae_qm9/test_data/val_batch/', batch_num=2500)
+    get_and_save_data_batch('/mnt/transvae_qm9/test_data/test_batch/smiles.pkl',
+                            '/mnt/transvae_qm9/test_data/test_batch/', batch_num=20000)
