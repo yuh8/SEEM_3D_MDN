@@ -3,7 +3,7 @@ from rdkit import Chem
 TF_EPS = tf.keras.backend.epsilon()
 
 # data gen
-NUM_CONFS_PER_MOL = 20
+NUM_CONFS_PER_MOL = 5
 
 # Bound features {Type:4, Stereo: 6}
 BOND_DICT = Chem.rdchem.BondType.values
@@ -15,7 +15,7 @@ RING_SIZES = range(3, 10)
 
 
 # Atom features
-MAX_NUM_ATOMS = 64
+MAX_NUM_ATOMS = 80
 ATOM_LIST = ['H', 'C', 'N', 'O', 'F', 'S', 'Cl', 'Br', 'P', 'I', 'Na', 'B', 'Si', 'Se', 'K', 'Bi']
 CHARGES = [-2, -1, 0, 1, 2, 3]
 
@@ -44,5 +44,5 @@ OUTPUT_DEPTH = NUM_COMPS + NUM_COMPS * 2
 NUM_FILTERS = 128
 FILTER_SIZE = 3
 NUM_RES_BLOCKS = 20
-BATCH_SIZE = 128
+BATCH_SIZE = 32
 VAL_BATCH_SIZE = 16

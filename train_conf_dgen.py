@@ -1,5 +1,4 @@
 import glob
-import math
 import pickle
 import numpy as np
 import tensorflow as tf
@@ -52,8 +51,8 @@ def core_model():
     d7 = decoder_block(d6, s1, 64, unpool=False)
 
     # Add a per-pixel classification layer
-    logits = layers.Conv2D(OUTPUT_DEPTH, 1, activation=None, padding="same", use_bias=False)(d7)
-    return inputs, logits
+    d_pred = layers.Conv2D(OUTPUT_DEPTH, 1, activation=None, padding="same", use_bias=False)(d7)
+    return inputs, d_pred
 
 
 def loss_func(y_true, y_pred):
@@ -88,9 +87,9 @@ def distance_rmse(y_true, y_pred):
     return loss
 
 
-class WarmCosine(tf.keras.optimizers.schedules.LearningRateSchedule):
+class WarmDecay(tf.keras.optimizers.schedules.LearningRateSchedule):
     def __init__(self, warmup_steps=4000):
-        super(WarmCosine, self).__init__()
+        super(WarmDecay, self).__init__()
         self.d_model = 9216
         self.d_model = tf.cast(self.d_model, tf.float32)
 
@@ -104,7 +103,7 @@ class WarmCosine(tf.keras.optimizers.schedules.LearningRateSchedule):
 
 
 def get_optimizer():
-    opt_op = tf.keras.optimizers.Adam(learning_rate=WarmCosine(), clipnorm=0.5)
+    opt_op = tf.keras.optimizers.Adam(learning_rate=WarmDecay(), clipnorm=0.5)
     return opt_op
 
 
@@ -123,6 +122,7 @@ def data_iterator_train():
             mask = G.sum(-1) > 3
             D *= mask
             yield G, np.expand_dims(D, axis=-1)
+
 
 def data_iterator_val():
     num_files = len(glob.glob(val_path + 'GD_*.npz'))
@@ -155,19 +155,21 @@ def data_iterator_test():
         D *= mask
         yield G, np.expand_dims(D, axis=-1)
 
+
 def _fixup_shape(x, y):
     x.set_shape([None, MAX_NUM_ATOMS, MAX_NUM_ATOMS, FEATURE_DEPTH])
     y.set_shape([None, MAX_NUM_ATOMS, MAX_NUM_ATOMS, 1])
     return x, y
 
+
 if __name__ == "__main__":
     freeze_support()
-    ckpt_path = 'checkpoints/generator_d_K_{}/'.format(NUM_COMPS)
+    ckpt_path = 'checkpoints/conf_d_model/'
     create_folder(ckpt_path)
-    create_folder("conf_model_d_K_{}".format(NUM_COMPS))
-    train_path = '/mnt/seem_3d_data/train_data/train_batch/'
-    val_path = '/mnt/seem_3d_data/test_data/val_batch/'
-    test_path = '/mnt/seem_3d_data/test_data/test_batch/'
+    create_folder("conf_d_model")
+    train_path = 'D:/seem_3d_data/train_data/train_batch/'
+    val_path = 'D:/seem_3d_data/test_data/val_batch/'
+    test_path = 'D:/seem_3d_data/test_data/test_batch/'
 
     f_name = train_path + 'stats.pkl'
     with open(f_name, 'rb') as handle:
@@ -177,53 +179,52 @@ if __name__ == "__main__":
     val_steps = len(glob.glob(val_path + 'GD_*.npz')) // VAL_BATCH_SIZE
 
     callbacks = [tf.keras.callbacks.ModelCheckpoint(ckpt_path,
-                                                    save_freq=1000,
+                                                    save_freq=100,
                                                     save_weights_only=True,
                                                     monitor='loss',
                                                     mode='min',
                                                     save_best_only=True)]
 
-    X, logits = core_model()
+    X, d_pred = core_model()
 
-    model = model = keras.Model(inputs=X, outputs=logits)
+    model = keras.Model(inputs=X, outputs=d_pred)
 
     model.compile(optimizer=get_optimizer(),
                   loss=loss_func, metrics=[distance_rmse])
 
-    save_model_to_json(model, "conf_model_d_K_{}/conf_model_d.json".format(NUM_COMPS))
+    save_model_to_json(model, "conf_d_model/conf_d_model.json")
     model.summary()
     breakpoint()
 
     try:
-        model.load_weights("./checkpoints/generator_d_K_1/")
+        model.load_weights("./checkpoints/conf_d_model/")
     except:
         print('no exitsing model detected, training starts afresh')
         pass
 
-    
     train_dataset = tf.data.Dataset.from_generator(
         data_iterator_train,
         output_types=(tf.float32, tf.float32),
-        output_shapes=((MAX_NUM_ATOMS, MAX_NUM_ATOMS, FEATURE_DEPTH), 
+        output_shapes=((MAX_NUM_ATOMS, MAX_NUM_ATOMS, FEATURE_DEPTH),
                        (MAX_NUM_ATOMS, MAX_NUM_ATOMS, 1)))
-    
-    train_dataset = train_dataset.shuffle(buffer_size=1000, seed=0, 
+
+    train_dataset = train_dataset.shuffle(buffer_size=1000, seed=0,
                                           reshuffle_each_iteration=True)
     train_dataset = train_dataset.batch(BATCH_SIZE, drop_remainder=True).map(_fixup_shape)
     train_dataset = train_dataset.prefetch(tf.data.experimental.AUTOTUNE)
-    
+
     val_dataset = tf.data.Dataset.from_generator(
         data_iterator_val,
         output_types=(tf.float32, tf.float32),
-        output_shapes=((MAX_NUM_ATOMS, MAX_NUM_ATOMS, FEATURE_DEPTH), 
+        output_shapes=((MAX_NUM_ATOMS, MAX_NUM_ATOMS, FEATURE_DEPTH),
                        (MAX_NUM_ATOMS, MAX_NUM_ATOMS, 1)))
     val_dataset = val_dataset.batch(VAL_BATCH_SIZE, drop_remainder=True).map(_fixup_shape)
     val_dataset = val_dataset.prefetch(tf.data.experimental.AUTOTUNE)
-    
+
     test_dataset = tf.data.Dataset.from_generator(
         data_iterator_test,
         output_types=(tf.float32, tf.float32),
-        output_shapes=((MAX_NUM_ATOMS, MAX_NUM_ATOMS, FEATURE_DEPTH), 
+        output_shapes=((MAX_NUM_ATOMS, MAX_NUM_ATOMS, FEATURE_DEPTH),
                        (MAX_NUM_ATOMS, MAX_NUM_ATOMS, 1)))
     test_dataset = test_dataset.batch(VAL_BATCH_SIZE, drop_remainder=True).map(_fixup_shape)
     test_dataset = test_dataset.prefetch(tf.data.experimental.AUTOTUNE)
@@ -236,9 +237,3 @@ if __name__ == "__main__":
               steps_per_epoch=train_steps)
     res = model.evaluate(test_dataset,
                          return_dict=True)
-
-    # save trained model in two ways
-    model.save("conf_model_d_full_K_{}/".format(NUM_COMPS))
-    model_new = models.load_model("conf_model_d_full_K_{}/".format(NUM_COMPS))
-    res = model_new.evaluate(data_iterator_test(test_path),
-                             return_dict=True)

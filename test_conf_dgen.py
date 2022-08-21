@@ -13,9 +13,9 @@ from rdkit.Chem.rdmolops import RemoveHs
 from rdkit.Chem.rdMolAlign import GetBestRMS
 from rdkit.Chem.rdForceFieldHelpers import MMFFOptimizeMoleculeConfs
 from src.data_process_utils import mol_to_tensor
-from src.bound_utils import embed_conf, sample_bound_matrix
-from src.misc_utils import load_json_model, create_folder, pickle_load
-from src.CONSTS import NUM_COMPS, TF_EPS
+from src.bound_utils import embed_conformer
+from src.misc_utils import load_json_model, create_folder, pickle_load, pickle_save
+from src.CONSTS import TF_EPS
 
 tfd = tfp.distributions
 
@@ -58,15 +58,15 @@ def get_prediction(mol):
     mol_origin = deepcopy(mol)
     g, _, _ = mol_to_tensor(mol_origin)
     g = np.expand_dims(g, axis=0)
-    # [1, MAX_NUM_ATOMS, MAX_NUM_ATOMS, 9]
+    mask = g.sum(-1) > 3
     d_pred = model(g, training=False).numpy()[0]
-    split_pred = np.split(d_pred, 3, axis=-1)
-    alpha, d_pred_mean, d_pred_std = split_pred[0], split_pred[1], split_pred[2]
-    return alpha, d_pred_mean, d_pred_std
+    d_pred_mean = np.squeeze(d_pred[..., 1] * mask)
+    d_pred_std = np.squeeze(np.exp(d_pred[..., 2]) * mask)
+    return d_pred_mean, d_pred_std, mask
 
 
 def compute_cov_mat(smiles_path):
-    drugs_file = "/mnt/rdkit_folder/summary_drugs.json"
+    drugs_file = "D:/seem_3d_data/data/rdkit_folder/summary_drugs.json"
     with open(drugs_file, "r") as f:
         drugs_summ = json.load(f)
 
@@ -76,7 +76,7 @@ def compute_cov_mat(smiles_path):
     mats = []
     for smi in smiles[:200]:
         try:
-            mol_path = "/mnt/rdkit_folder/" + drugs_summ[smi]['pickle_path']
+            mol_path = "D:/seem_3d_data/data/rdkit_folder/" + drugs_summ[smi]['pickle_path']
             with open(mol_path, "rb") as f:
                 mol_dict = pickle.load(f)
         except:
@@ -91,17 +91,14 @@ def compute_cov_mat(smiles_path):
         mol_pred = deepcopy(conf_df.iloc[0].rd_mol)
 
         try:
-            alpha, d_pred_mean, d_pred_std = get_prediction(mol_pred)
+            d_pred_mean, d_pred_std, mask = get_prediction(mol_pred)
         except:
             continue
         num_refs = conf_df.shape[0]
         num_gens = num_refs * 2
-        mol_pred.RemoveAllConformers()
-        num_atoms = mol_pred.GetNumAtoms()
 
-        for _ in range(num_gens):
-            bounds_matrix = sample_bound_matrix(alpha, d_pred_mean, d_pred_std, d_mean, d_std, num_atoms)
-            embed_conf(mol_pred, bounds_matrix, seed=43)
+        embed_conformer(mol_pred, num_gens, d_pred_mean, d_pred_std,
+                        d_mean, d_std, np.squeeze(mask), seed=43)
 
         num_gens = mol_pred.GetNumConformers()
         cov_mat = np.zeros((num_refs, num_gens))
@@ -128,14 +125,14 @@ def compute_cov_mat(smiles_path):
 
 if __name__ == "__main__":
     freeze_support()
-    train_path = '/mnt/seem_3d_data/train_data/train_batch/'
-    test_path = '/mnt/seem_3d_data/test_data/test_batch/'
+    train_path = 'D:/seem_3d_data/train_data/train_batch/'
+    test_path = 'D:/seem_3d_data/test_data/test_batch/'
 
     create_folder('gen_samples/')
-    model = load_json_model("conf_model_d_K_{}/conf_model_d.json".format(NUM_COMPS))
+    model = load_json_model("conf_d_model/conf_d_model.json")
     model.compile(optimizer='adam',
                   loss=loss_func)
-    model.load_weights("./checkpoints/generator_d_K_{}/".format(NUM_COMPS))
+    model.load_weights("./checkpoints/conf_d_model/")
     f_name = train_path + 'stats.pkl'
     with open(f_name, 'rb') as handle:
         d_mean, d_std = pickle.load(handle)
