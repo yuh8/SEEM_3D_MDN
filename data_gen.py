@@ -85,7 +85,37 @@ def get_and_save_data_batch(smiles_path, dest_data_path, batch_num=200000):
         pickle.dump(np.array([mean, stdev]), f)
 
 
+def get_num_atoms_dist():
+    drugs_file = "D:/rdkit_folder/summary_drugs.json"
+    with open(drugs_file, "r") as f:
+        drugs_summ = json.load(f)
+
+    all_simles = list(drugs_summ.keys())
+    num_atoms = []
+    for idx, smi in enumerate(all_simles):
+        try:
+            mol_path = "D:/rdkit_folder/" + drugs_summ[smi]['pickle_path']
+            with open(mol_path, "rb") as f:
+                mol_dict = pickle.load(f)
+        except Exception as e:
+            print(e)
+            continue
+
+        conf_df = pd.DataFrame(mol_dict['conformers'])
+        conf_df.sort_values(by=['boltzmannweight'], ascending=False, inplace=True)
+        if conf_df.shape[0] < 1:
+            continue
+        num_atoms.append(conf_df.iloc[0].rd_mol.GetNumAtoms())
+
+        if len(num_atoms) % 1000 == 0:
+            pct_98 = np.percentile(num_atoms, 99)
+            print("{0}/{1} done with 98 pct {2}".format(idx, len(all_simles), pct_98))
+
+    breakpoint()
+
+
 if __name__ == "__main__":
+    # get_num_atoms_dist()
     get_train_val_test_smiles()
     get_and_save_data_batch('D:/seem_3d_data/train_data/train_batch/smiles.pkl',
                             'D:/seem_3d_data/train_data/train_batch/')

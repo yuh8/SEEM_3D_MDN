@@ -71,9 +71,11 @@ def encoder_block(X, num_filters, pool=True):
 
 def decoder_block(X, skip_features, num_filters, unpool=True):
     if unpool:
-        X = tf.keras.layers.Conv2DTranspose(num_filters, (2, 2), strides=2, padding="same", 
+        X = tf.keras.layers.Conv2DTranspose(num_filters, (2, 2), strides=2, padding="same",
                                             kernel_regularizer=regularizers.L2(1e-4),
                                             use_bias=False)(X)
+    pad_size = skip_features.shape[1] - X.shape[1]
+    X = tf.keras.layers.ZeroPadding2D(padding=((pad_size, 0), (pad_size, 0)))(X)
     X = tf.keras.layers.Concatenate()([X, skip_features])
     X = tf.keras.layers.LayerNormalization()(X)
     X = tf.keras.layers.Activation("relu")(X)
