@@ -139,7 +139,7 @@ def compute_cov_mat(smiles_path):
                 cnt += 1
         except:
             continue
-        cov_score = np.mean(cov_mat.min(-1) < 1.25)
+        cov_score = np.mean(cov_mat.min(-1) < 0.5)
         mat_score = np.sum(cov_mat.min(-1)) / conf_df.shape[0]
         print('cov_score and mat_score for smiles {0} is {1} and {2} with num_gen {3}'.format(idx, cov_score, mat_score, num_gens))
         covs.append(cov_score)
