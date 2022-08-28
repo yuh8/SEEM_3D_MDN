@@ -103,7 +103,7 @@ def compute_cov_mat(smiles_path):
     # shuffle(smiles)
     covs = []
     mats = []
-    for idx, smi in enumerate(smiles[:300]):
+    for idx, smi in enumerate(smiles[:1000]):
         try:
             mol_path = "/mnt/rdkit_folder/" + drugs_summ[smi]['pickle_path']
             with open(mol_path, "rb") as f:
@@ -114,12 +114,15 @@ def compute_cov_mat(smiles_path):
         conf_df = pd.DataFrame(mol_dict['conformers'])
         conf_df.sort_values(by=['boltzmannweight'], ascending=False, inplace=True)
 
-        if conf_df.shape[0] < 1:
+        num_refs = conf_df.shape[0]
+
+        if num_refs < 50:
             continue
 
-        num_gens = conf_df.shape[0] * 2
-        if num_gens > 10000:
+        if num_refs > 100:
             continue
+
+        num_gens = num_refs * 2
 
         mol_pred = deepcopy(conf_df.iloc[0].rd_mol)
 
