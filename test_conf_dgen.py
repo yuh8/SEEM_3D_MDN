@@ -146,10 +146,14 @@ def compute_cov_mat(smiles_path):
             continue
         cov_score = np.mean(cov_mat.min(-1) < 1.25)
         mat_score = np.sum(cov_mat.min(-1)) / conf_df.shape[0]
-        print('cov_score and mat_score for smiles {0} is {1} and {2} with num_gen {3}'.format(idx, cov_score, mat_score, num_gens))
         covs.append(cov_score)
         mats.append(mat_score)
-        if len(covs) >= 200:
+        cov_mean = np.round(np.mean(covs), 4)
+        cov_med = np.round(np.median(covs), 4)
+        mat_mean = np.round(np.mean(mats), 4)
+        mat_med = np.round(np.median(mats), 4)
+        print(f'cov_mean = {cov_mean}, cov_med = {cov_med}, mat_mean = {mat_mean}, mat_med = {mat_med} for {idx} th mol')
+        if len(covs) == 200:
             break
     breakpoint()
 
