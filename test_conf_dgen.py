@@ -70,12 +70,12 @@ def get_prediction(mol, sample_size):
     mask = np.sum(np.abs(g), axis=-1)
     mask = np.sum(mask, axis=1, keepdims=True) <= 0
     mask = np.expand_dims(mask, axis=1).astype(np.float32)
-    with tf.device('/cpu:0'):
+    with tf.device('/cpu:2'):
         h = g_net.predict(g)
     h = np.tile(h, [sample_size, 1, 1])
     mask = np.tile(mask, [sample_size, 1, 1, 1])
     z = np.random.normal(0, 1, size=(sample_size, MAX_NUM_ATOMS, HIDDEN_SIZE))
-    with tf.device('/cpu:0'):
+    with tf.device('/cpu:2'):
         r_pred = decoder_net.predict([h, mask, z]) * (1 - np.squeeze(mask)[..., np.newaxis])
     return r_pred
 
@@ -101,63 +101,83 @@ def compute_cov_mat(smiles_path):
 
     smiles = pickle_load(smiles_path)
     # shuffle(smiles)
-    covs = []
-    mats = []
-    # total_confs = 0
-    for idx, smi in enumerate(smiles[:2000]):
-        try:
-            mol_path = "/mnt/rdkit_folder/" + drugs_summ[smi]['pickle_path']
-            with open(mol_path, "rb") as f:
-                mol_dict = pickle.load(f)
-        except:
-            continue
 
-        conf_df = pd.DataFrame(mol_dict['conformers'])
-        conf_df.sort_values(by=['boltzmannweight'], ascending=False, inplace=True)
+    cov_means = []
+    cov_meds = []
+    mat_means = []
+    mat_meds = []
+    for _ in range(10):
+        covs = []
+        mats = []
+        for idx, smi in enumerate(smiles[:1000]):
+            try:
+                mol_path = "/mnt/rdkit_folder/" + drugs_summ[smi]['pickle_path']
+                with open(mol_path, "rb") as f:
+                    mol_dict = pickle.load(f)
+            except:
+                continue
 
-        num_refs = conf_df.shape[0]
-        if num_refs < 50:
-            continue
-        if num_refs > 500:
-            continue
-        # total_confs += conf_df.shape[0]
-        # print(total_confs)
-        # continue
+            conf_df = pd.DataFrame(mol_dict['conformers'])
+            conf_df.sort_values(by=['boltzmannweight'], ascending=False, inplace=True)
 
-        num_gens = num_refs * 2
+            num_refs = conf_df.shape[0]
 
-        mol_pred = deepcopy(conf_df.iloc[0].rd_mol)
+            if num_refs < 50:
+                continue
 
-        try:
-            r_pred = get_prediction(mol_pred, num_gens)
-        except:
-            continue
+            if num_refs > 500:
+                continue
 
-        cov_mat = np.zeros((conf_df.shape[0], num_gens))
+            num_gens = num_refs * 2
 
-        cnt = 0
-        try:
-            mol_probs = get_mol_probs(mol_pred, r_pred, num_gens, FF=False)
-            for _, mol_row in conf_df.iterrows():
-                mol_ref = deepcopy(mol_row.rd_mol)
-                for j in range(num_gens):
-                    rmsd = get_best_RMSD(mol_probs[j], mol_ref)
-                    cov_mat[cnt, j] = rmsd
-                cnt += 1
-        except:
-            continue
-        cov_score = np.mean(cov_mat.min(-1) < 0.5)
-        mat_score = np.sum(cov_mat.min(-1)) / conf_df.shape[0]
-        covs.append(cov_score)
-        mats.append(mat_score)
-        cov_mean = np.round(np.mean(covs), 4)
-        cov_med = np.round(np.median(covs), 4)
-        mat_mean = np.round(np.mean(mats), 4)
-        mat_med = np.round(np.median(mats), 4)
-        print(f'cov_mean = {cov_mean}, cov_med = {cov_med}, mat_mean = {mat_mean}, mat_med = {mat_med} for {idx} th mol')
-        if len(covs) == 200:
-            break
-    breakpoint()
+            mol_pred = deepcopy(conf_df.iloc[0].rd_mol)
+
+            try:
+                r_pred = get_prediction(mol_pred, num_gens)
+            except:
+                continue
+
+            cov_mat = np.zeros((conf_df.shape[0], num_gens))
+
+            cnt = 0
+            try:
+                mol_probs = get_mol_probs(mol_pred, r_pred, num_gens, FF=False)
+                for _, mol_row in conf_df.iterrows():
+                    mol_ref = deepcopy(mol_row.rd_mol)
+                    for j in range(num_gens):
+                        rmsd = get_best_RMSD(mol_probs[j], mol_ref)
+                        cov_mat[cnt, j] = rmsd
+                    cnt += 1
+            except:
+                continue
+            cov_score = np.mean(cov_mat.min(-1) < 0.5)
+            mat_score = np.sum(cov_mat.min(-1)) / conf_df.shape[0]
+            covs.append(cov_score)
+            mats.append(mat_score)
+            cov_mean = np.round(np.mean(covs), 4)
+            cov_med = np.round(np.median(covs), 4)
+            mat_mean = np.round(np.mean(mats), 4)
+            mat_med = np.round(np.median(mats), 4)
+            print(f'cov_mean = {cov_mean}, cov_med = {cov_med}, mat_mean = {mat_mean}, mat_med = {mat_med} for {idx} th mol')
+            if len(covs) == 200:
+                break
+        cov_means.append(cov_mean)
+        cov_meds.append(cov_med)
+        mat_means.append(mat_mean)
+        mat_meds.append(mat_med)
+    cov_means_mean = np.round(np.mean(cov_means), 4)
+    cov_means_std = np.round(np.std(cov_means), 4)
+    cov_meds_mean = np.round(np.mean(cov_meds), 4)
+    cov_meds_std = np.round(np.std(cov_meds), 4)
+
+    mat_means_mean = np.round(np.mean(mat_means), 4)
+    mat_means_std = np.round(np.std(mat_means), 4)
+    mat_meds_mean = np.round(np.mean(mat_meds), 4)
+    mat_meds_std = np.round(np.std(mat_meds), 4)
+    print(f'cov_means_mean = {cov_means_mean} with std {cov_means_std}')
+    print(f'cov_meds_mean = {cov_meds_mean} with std {cov_meds_std}')
+    print(f'mat_means_mean = {mat_means_mean} with std {mat_means_std}')
+    print(f'mat_meds_mean = {mat_meds_mean} with std {mat_meds_std}')
 
 
 if __name__ == "__main__":
