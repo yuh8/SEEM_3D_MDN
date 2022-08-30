@@ -79,6 +79,7 @@ def get_num_atoms_dist():
 
     all_simles = list(drugs_summ.keys())
     num_atoms = []
+    cnt_out_of_dist_smi = 0
     for idx, smi in enumerate(all_simles):
         try:
             mol_path = "/mnt/rdkit_folder/" + drugs_summ[smi]['pickle_path']
@@ -90,19 +91,26 @@ def get_num_atoms_dist():
 
         conf_df = pd.DataFrame(mol_dict['conformers'])
         conf_df.sort_values(by=['boltzmannweight'], ascending=False, inplace=True)
-        if conf_df.shape[0] < 1:
+        num_confs = conf_df.shape[0]
+        if num_confs < 1:
             continue
         num_atoms.append(conf_df.iloc[0].rd_mol.GetNumAtoms())
 
+        if conf_df.iloc[0].rd_mol.GetNumAtoms() > 69:
+            if num_confs > 50 and num_confs < 100:
+                cnt_out_of_dist_smi += 1
+
         if len(num_atoms) % 1000 == 0:
             pct_98 = np.percentile(num_atoms, 98)
+            pct_out_of_dist = np.round(cnt_out_of_dist_smi / idx, 4)
             print("{0}/{1} done with 98 pct {2}".format(idx, len(all_simles), pct_98))
+            print("{0}/{1} done with num of smis out of distribution pct {2}".format(idx, len(all_simles), pct_out_of_dist))
 
     breakpoint()
 
 
 if __name__ == "__main__":
-    # get_num_atoms_dist()
+    get_num_atoms_dist()
     get_train_val_test_smiles()
     get_and_save_data_batch('/mnt/transvae/train_data/train_batch/smiles.pkl',
                             '/mnt/transvae/train_data/train_batch/')
