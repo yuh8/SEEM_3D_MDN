@@ -160,7 +160,7 @@ class EncoderLayer(tf.keras.layers.Layer):
 
 
 def get_g_net():
-    inputs = tf.keras.layers.Input(shape=(MAX_NUM_ATOMS, MAX_NUM_ATOMS, FEATURE_DEPTH))
+    inputs = tf.keras.layers.Input(shape=(MAX_NUM_ATOMS, MAX_NUM_ATOMS, FEATURE_DEPTH + 4))
     mask = tf.reduce_sum(tf.abs(inputs), axis=-1)
     mask = tf.reduce_sum(mask, axis=1, keepdims=True) <= 0
     # for multi-head attention, mask dism [batch_size, 1, 1, num_atoms]

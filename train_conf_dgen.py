@@ -7,10 +7,9 @@ from tensorflow import keras
 from tensorflow.keras import Model
 from tensorflow.keras import callbacks
 from multiprocessing import freeze_support
-from src.embed_utils import get_g_net, get_gdr_net, get_decode_net
-from src.misc_utils import create_folder, align_conf, tf_contriod
-from src.CONSTS import (MAX_NUM_ATOMS, FEATURE_DEPTH, BATCH_SIZE, VAL_BATCH_SIZE,
-                        MIN_KL_WEIGHT, MAX_KL_WEIGHT, MAX_EPOCH, Q_PERIOD, CYCLE_PERIOD)
+from src.embed_utils import get_g_net
+from src.misc_utils import create_folder
+from src.CONSTS import (MAX_NUM_ATOMS, FEATURE_DEPTH, BATCH_SIZE, VAL_BATCH_SIZE,MAX_EPOCH)
 
 np.set_printoptions(threshold=np.inf)
 np.set_printoptions(linewidth=1000)
@@ -24,48 +23,26 @@ if gpus:
         print(e)
 
 
-def get_mertcis():
-    kl = keras.metrics.Mean(name="kl_loss")
-    r_rmsd = keras.metrics.Mean(name="r_rmsd")
-    return kl, r_rmsd
+def get_metrics():
+    aal = keras.metrics.Mean(name="avg_abs_loss")
+    return aal
 
 
 def core_model():
     inputs = keras.layers.Input(shape=(MAX_NUM_ATOMS, MAX_NUM_ATOMS, FEATURE_DEPTH + 4))
-    mask = tf.reduce_sum(tf.abs(inputs), axis=-1)
-    mask = tf.reduce_sum(mask, axis=1, keepdims=True) <= 0
-    mask = tf.expand_dims(mask, axis=1)
-    mask = tf.cast(mask, tf.float32)
-    z_mean, z_log_var, z = gdr_net(inputs)
-    h = g_net(inputs[..., :-4])
-    r_pred = dec_net([h, mask, z])
-    return inputs, z_mean, z_log_var, r_pred
+    # (batch_size, num_atoms, d_model)
+    h = g_net(inputs)
+    h = tf.reduce_mean(h, axis=1)
+    # (batch_size, 3)
+    y_prop = tf.keras.layers.Dense(3)(h)
+    return inputs, y_prop
 
 
 def loss_func_r(y_true, y_pred):
-    # [B,N,1]
-    mask = tf.cast(tf.reduce_sum(tf.abs(y_true), axis=-1, keepdims=True) > 0, tf.float32)
-    y_pred *= mask
-    Rot = tf.stop_gradient(tf.py_function(align_conf,
-                                          inp=[y_pred, y_true, mask],
-                                          Tout=tf.float32))
-    QC = tf_contriod(y_true, mask)
-    PC = tf_contriod(y_pred, mask)
-    y_pred_m = (y_pred - PC) * mask
-    y_pred_aligned = (tf.matmul(y_pred_m, Rot) + QC) * mask
-    total_row = tf.reduce_sum(mask, axis=[1, 2])
-    loss = tf.math.squared_difference(y_pred_aligned, y_true)
-    loss = tf.reduce_sum(loss, axis=[1, 2]) / total_row
-    # [BATCH,]
-    loss = tf.math.sqrt(loss)
-    return loss
-
-
-def loss_func_kl(z_mean, z_logvar):
-    # [batch_size, num_atoms, d_model]
-    kl_loss = -0.5 * (1 + z_logvar - tf.square(z_mean) - tf.exp(z_logvar))
-    kl_loss = tf.reduce_sum(kl_loss, axis=[1, 2])
-    return kl_loss
+    # [B,3]
+    abs_error = tf.abs(y_true - y_pred)
+    avg_abs_error = tf.reduce_mean(abs_error, axis=-1)
+    return avg_abs_error
 
 
 class WarmDecay(tf.keras.optimizers.schedules.LearningRateSchedule):
@@ -88,66 +65,20 @@ def get_optimizer():
     return opt_op
 
 
-def get_metrics():
-    kl = tf.keras.metrics.Mean(name="kl_loss")
-    r_rmsd = tf.keras.metrics.Mean(name="r_rmsd")
-    return kl, r_rmsd
-
-
-def cosine_cycle(x):
-    r = MAX_KL_WEIGHT - MIN_KL_WEIGHT
-    if x <= Q_PERIOD:
-        y = r * (1 - np.cos(math.pi * x / Q_PERIOD)) / 2 + MIN_KL_WEIGHT
-    else:
-        y = MAX_KL_WEIGHT
-    return y
-
-
-def step_increment(x):
-    pw = x // Q_PERIOD
-    y = MIN_KL_WEIGHT * np.power(2, pw)
-    if y > MAX_KL_WEIGHT:
-        y = MAX_KL_WEIGHT
-    return y
-
-
-class WeightAdjuster(callbacks.Callback):
-    def __init__(self, weight, change_epoch):
-        """
-        Args:
-        weights (list): list of loss weights
-        change_epoch (int): epoch number for weight change
-        """
-        self.kl_weight = weight
-        self.change_epoch = change_epoch
-        self.train_iter = 0
-
-    def on_epoch_begin(self, epoch, logs={}):
-        # Updated loss weights
-        # set_value = cosine_cycle(self.train_iter % self.change_batch)
-        set_value = step_increment(epoch)
-        K.set_value(self.kl_weight, set_value)
-        self.train_iter += 1
-
-
 class TransVAE(Model):
-    def compile(self, optimizer, metrics, kl_weight):
+    def compile(self, optimizer, metrics):
         super(TransVAE, self).compile()
         self.optimizer = optimizer
-        self.kl = metrics[0]
-        self.r_rmsd = metrics[1]
-        self.kl_weight = kl_weight
+        self.aal = metrics[0]
 
     def train_step(self, data):
         X = data[0]
-        r_true = data[1]
+        y_true = data[1]
 
         # capture the scope of gradient
         with tf.GradientTape() as tape:
-            z_mean, z_log_var, r_pred = self(X, training=True)
-            kl_loss = loss_func_kl(z_mean, z_log_var)
-            rec_loss = loss_func_r(r_true, r_pred)
-            loss = self.kl_weight * kl_loss + rec_loss
+            y_pred = self(X, training=True)
+            loss = loss_func_r(y_true, y_pred)
 
         # Compute gradients
         trainable_vars = self.trainable_variables
@@ -156,22 +87,16 @@ class TransVAE(Model):
         # Update weights
         self.optimizer.apply_gradients(zip(gradients, trainable_vars))
 
-        self.kl.update_state(kl_loss)
-        self.r_rmsd.update_state(rec_loss)
-        return {"kl_loss": self.kl.result(),
-                "r_rmsd": self.r_rmsd.result(),
-                "kl_weight": self.kl_weight}
+        self.aal.update_state(loss)
+        return {"avs_error": self.aal.result()}
 
     def test_step(self, data):
         X = data[0]
-        r_true = data[1]
-        z_mean, z_log_var, r_pred = self(X, training=False)
-        kl_loss = loss_func_kl(z_mean, z_log_var)
-        rec_loss = loss_func_r(r_true, r_pred)
-        self.kl.update_state(kl_loss)
-        self.r_rmsd.update_state(rec_loss)
-        return {"kl_loss": self.kl.result(),
-                "r_rmsd": self.r_rmsd.result()}
+        y_true = data[1]
+        y_pred = self(X, training=False)
+        loss = loss_func_r(y_true, y_pred)
+        self.aal.update_state(loss)
+        return {"avs_error": self.aal.result()}
 
     @property
     def metrics(self):
@@ -220,48 +145,40 @@ def data_iterator_test():
 
 def _fixup_shape(x, y):
     x.set_shape([None, MAX_NUM_ATOMS, MAX_NUM_ATOMS, FEATURE_DEPTH + 4])
-    y.set_shape([None, MAX_NUM_ATOMS, 3])
+    y.set_shape([None, 3])
     return x, y
 
 
 if __name__ == "__main__":
     freeze_support()
-    ckpt_path = 'checkpoints/TransVAE_qm9/'
+    ckpt_path = 'checkpoints/TransVAE_qm9_prop/'
     create_folder(ckpt_path)
-    create_folder("dec_net_qm9")
-    create_folder("gdr_net_qm9")
-    create_folder("g_net_qm9")
-    train_path = '/mnt/transvae_qm9/train_data/train_batch/'
-    val_path = '/mnt/transvae_qm9/test_data/val_batch/'
-    test_path = '/mnt/transvae_qm9/test_data/test_batch/'
+    create_folder("g_net_qm9_prop")
+    train_path = '/mnt/transvae_qm9_prop/train_data/train_batch/'
+    val_path = '/mnt/transvae_qm9_prop/test_data/val_batch/'
+    test_path = '/mnt/transvae_qm9_prop/test_data/test_batch/'
 
     train_steps = len(glob.glob(train_path + 'GDR_*.npz')) // BATCH_SIZE
     val_steps = len(glob.glob(val_path + 'GDR_*.npz')) // VAL_BATCH_SIZE
 
     # get models
     g_net = get_g_net()
-    gdr_net = get_gdr_net()
-    dec_net = get_decode_net()
 
     # callbacks
-    kl_weight = K.variable(MIN_KL_WEIGHT)
-    kl_weight._trainable = False
-    weight_adjuster = WeightAdjuster(kl_weight, 20)
     callbacks = [tf.keras.callbacks.ModelCheckpoint(ckpt_path,
                                                     save_freq=1000,
                                                     save_weights_only=True),
-                 tf.keras.callbacks.TensorBoard('./logs_transvae_qm9', update_freq=10),
-                 weight_adjuster]
+                 tf.keras.callbacks.TensorBoard('./logs_transvae_qm9_prop', update_freq=10)]
 
     # compile model
-    X, z_mean, z_log_var, r_pred = core_model()
-    transvae = TransVAE(inputs=X, outputs=[z_mean, z_log_var, r_pred])
+    X, y_pred = core_model()
+    transvae = TransVAE(inputs=X, outputs=y_pred)
     optimizer = get_optimizer()
-    transvae.compile(optimizer=get_optimizer(), metrics=get_metrics(), kl_weight=kl_weight)
+    transvae.compile(optimizer=get_optimizer(), metrics=[get_metrics()])
     transvae.summary()
 
     try:
-        transvae.load_weights("./checkpoints/TransVAE_qm9/")
+        transvae.load_weights("./checkpoints/TransVAE_qm9_prop/")
     except:
         print('no exitsing model detected, training starts afresh')
         pass
@@ -269,8 +186,7 @@ if __name__ == "__main__":
     train_dataset = tf.data.Dataset.from_generator(
         data_iterator_train,
         output_types=(tf.float32, tf.float32),
-        output_shapes=((MAX_NUM_ATOMS, MAX_NUM_ATOMS, FEATURE_DEPTH + 4),
-                       (MAX_NUM_ATOMS, 3)))
+        output_shapes=((MAX_NUM_ATOMS, MAX_NUM_ATOMS, FEATURE_DEPTH + 4), 3))
 
     train_dataset = train_dataset.shuffle(buffer_size=1000, seed=0,
                                           reshuffle_each_iteration=True)
@@ -280,16 +196,14 @@ if __name__ == "__main__":
     val_dataset = tf.data.Dataset.from_generator(
         data_iterator_val,
         output_types=(tf.float32, tf.float32),
-        output_shapes=((MAX_NUM_ATOMS, MAX_NUM_ATOMS, FEATURE_DEPTH + 4),
-                       (MAX_NUM_ATOMS, 3)))
+        output_shapes=((MAX_NUM_ATOMS, MAX_NUM_ATOMS, FEATURE_DEPTH + 4), 3))
     val_dataset = val_dataset.batch(VAL_BATCH_SIZE, drop_remainder=True).map(_fixup_shape)
     val_dataset = val_dataset.prefetch(tf.data.experimental.AUTOTUNE)
 
     test_dataset = tf.data.Dataset.from_generator(
         data_iterator_test,
         output_types=(tf.float32, tf.float32),
-        output_shapes=((MAX_NUM_ATOMS, MAX_NUM_ATOMS, FEATURE_DEPTH + 4),
-                       (MAX_NUM_ATOMS, 3)))
+        output_shapes=((MAX_NUM_ATOMS, MAX_NUM_ATOMS, FEATURE_DEPTH + 4), 3))
     test_dataset = test_dataset.batch(VAL_BATCH_SIZE, drop_remainder=True).map(_fixup_shape)
     test_dataset = test_dataset.prefetch(tf.data.experimental.AUTOTUNE)
 
@@ -304,8 +218,4 @@ if __name__ == "__main__":
 
     # save trained model
     g_net.compile(optimizer='SGD', loss=None)
-    g_net.save('g_net_qm9/' + 'GNet')
-    gdr_net.compile(optimizer='adam', loss=None)
-    gdr_net.save('gr_net_qm9/' + 'GDRNet')
-    dec_net.compile(optimizer='adam', loss=None)
-    dec_net.save('dec_net_qm9/' + 'DecNet')
+    g_net.save('g_net_qm9_prop/' + 'GNet')
