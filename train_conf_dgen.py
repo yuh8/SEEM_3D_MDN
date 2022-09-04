@@ -8,8 +8,8 @@ from tensorflow.keras import Model
 from tensorflow.keras import callbacks
 from multiprocessing import freeze_support
 from src.embed_utils import get_g_net
-from src.misc_utils import create_folder
-from src.CONSTS import (MAX_NUM_ATOMS, FEATURE_DEPTH, BATCH_SIZE, VAL_BATCH_SIZE,MAX_EPOCH)
+from src.misc_utils import create_folder, pickle_load
+from src.CONSTS import (MAX_NUM_ATOMS, FEATURE_DEPTH, BATCH_SIZE, VAL_BATCH_SIZE, MAX_EPOCH)
 
 np.set_printoptions(threshold=np.inf)
 np.set_printoptions(linewidth=1000)
@@ -102,7 +102,14 @@ class TransVAE(Model):
     def metrics(self):
         # We need to list our metrics here so the `reset_states()` can be
         # called automatically.
-        return [self.kl, self.r_rmsd]
+        return [self.aal]
+
+
+def _standardize_prop(r, mean_std):
+    r[0] = (r[0] - mean_std[0]) / mean_std[1]
+    r[1] = (r[1] - mean_std[2]) / mean_std[3]
+    r[2] = (r[2] - mean_std[4]) / mean_std[5]
+    return r
 
 
 def data_iterator_train():
@@ -115,8 +122,9 @@ def data_iterator_train():
             f_name = train_path + f'GDR_{batch}.npz'
             GDR = np.load(f_name)
             G = GDR['G']
-            R = GDR['R']
-            yield G, R
+            Y = GDR['Y']
+            Y = _standardize_prop(Y, mean_std)
+            yield G, Y
 
 
 def data_iterator_val():
@@ -128,8 +136,9 @@ def data_iterator_val():
             f_name = val_path + f'GDR_{batch}.npz'
             GDR = np.load(f_name)
             G = GDR['G']
-            R = GDR['R']
-            yield G, R
+            Y = GDR['Y']
+            Y = _standardize_prop(Y, mean_std)
+            yield G, Y
 
 
 def data_iterator_test():
@@ -139,8 +148,9 @@ def data_iterator_test():
         f_name = test_path + f'GDR_{batch}.npz'
         GDR = np.load(f_name)
         G = GDR['G']
-        R = GDR['R']
-        yield G, R
+        Y = GDR['Y']
+        Y = _standardize_prop(Y, mean_std)
+        yield G, Y
 
 
 def _fixup_shape(x, y):
@@ -160,6 +170,8 @@ if __name__ == "__main__":
 
     train_steps = len(glob.glob(train_path + 'GDR_*.npz')) // BATCH_SIZE
     val_steps = len(glob.glob(val_path + 'GDR_*.npz')) // VAL_BATCH_SIZE
+
+    mean_std = pickle_load(train_path + 'stats.pkl')
 
     # get models
     g_net = get_g_net()
