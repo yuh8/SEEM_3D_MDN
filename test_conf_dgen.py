@@ -1,14 +1,9 @@
 import os
 os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
-import json
-import pickle
 import numpy as np
-import pandas as pd
 import tensorflow as tf
-from copy import deepcopy
 from multiprocessing import freeze_support
 from train_conf_dgen import data_iterator_test
-from src.data_process_utils import mol_to_tensor
 from src.misc_utils import pickle_load
 
 
