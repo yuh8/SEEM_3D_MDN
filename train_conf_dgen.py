@@ -31,10 +31,7 @@ def get_metrics():
 def core_model():
     inputs = keras.layers.Input(shape=(MAX_NUM_ATOMS, MAX_NUM_ATOMS, FEATURE_DEPTH + 4))
     # (batch_size, num_atoms, d_model)
-    h = g_net(inputs)
-    h = tf.reduce_mean(h, axis=1)
-    # (batch_size, 3)
-    y_prop = tf.keras.layers.Dense(3)(h)
+    y_prop = g_net(inputs)
     return inputs, y_prop
 
 

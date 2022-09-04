@@ -171,7 +171,10 @@ def get_g_net():
         # (batch_size, num_atoms, d_model)
         x = EncoderLayer(d_model=HIDDEN_SIZE, num_heads=NUM_HEADS, dff=DFF)(x, x, mask=mask)
 
-    return Model(inputs, x, name='GNet')
+    h = tf.reduce_mean(x, axis=1)
+    # (batch_size, 3)
+    y_prop = tf.keras.layers.Dense(3)(h)
+    return Model(inputs, y_prop, name='GNet')
 
 
 def get_gdr_net():
