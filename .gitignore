@@ -6,3 +6,5 @@ logs*/
 *_net_*/
 *.txt
 *.out
+*.clean
+*.pkl

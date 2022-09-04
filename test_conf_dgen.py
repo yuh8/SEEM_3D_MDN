@@ -6,7 +6,6 @@ from random import shuffle
 import numpy as np
 import pandas as pd
 import tensorflow as tf
-import tensorflow_probability as tfp
 import matplotlib.pyplot as plt
 from copy import deepcopy
 from multiprocessing import freeze_support
@@ -19,30 +18,12 @@ from src.data_process_utils import mol_to_tensor
 from src.misc_utils import pickle_load
 from src.CONSTS import HIDDEN_SIZE, MAX_NUM_ATOMS, TF_EPS
 
-tfd = tfp.distributions
-
 
 def load_models():
     g_net = tf.keras.models.load_model('g_net_qm9/GNet/')
     gr_net = tf.keras.models.load_model('gr_net_qm9/GDRNet/')
     decoder_net = tf.keras.models.load_model('dec_net_qm9/DecNet/')
     return g_net, decoder_net, gr_net
-
-
-def loss_func(y_true, y_pred):
-    comp_weight, mean, log_std = tf.split(y_pred, 3, axis=-1)
-    comp_weight = tf.nn.softmax(comp_weight, axis=-1)
-    log_y_true = tf.math.log(y_true + TF_EPS)
-    dist = tfd.Normal(loc=mean, scale=tf.math.exp(log_std))
-    # [BATCH, MAX_NUM_ATOMS, MAX_NUM_ATOMS, NUM_COMPS]
-    _loss = comp_weight * dist.prob(log_y_true)
-    # [BATCH, MAX_NUM_ATOMS, MAX_NUM_ATOMS]
-    _loss = tf.reduce_sum(_loss, axis=-1)
-    _loss = tf.math.log(_loss + TF_EPS)
-    mask = tf.squeeze(tf.cast(y_true > 0, tf.float32))
-    _loss *= mask
-    loss = -tf.reduce_sum(_loss, axis=[1, 2])
-    return loss
 
 
 def plot_3d_scatter(pos):
@@ -86,8 +67,7 @@ def get_mol_probs(mol_pred, r_pred, num_gens, FF=True):
         mol_prob = deepcopy(mol_pred)
         _conf = mol_prob.GetConformer()
         for i in range(mol_prob.GetNumAtoms()):
-            x, y, z = np.double(r_pred[j][i])
-            _conf.SetAtomPosition(i, Point3D(x, y, z))
+            _conf.SetAtomPosition(i, r_pred[j][i].tolist())
         if FF:
             MMFFOptimizeMolecule(mol_prob)
         mol_probs.append(mol_prob)
@@ -140,16 +120,14 @@ def compute_cov_mat(smiles_path):
             cov_mat = np.zeros((conf_df.shape[0], num_gens))
 
             cnt = 0
-            try:
-                mol_probs = get_mol_probs(mol_pred, r_pred, num_gens, FF=False)
-                for _, mol_row in conf_df.iterrows():
-                    mol_ref = deepcopy(mol_row.rd_mol)
-                    for j in range(num_gens):
-                        rmsd = get_best_RMSD(mol_probs[j], mol_ref)
-                        cov_mat[cnt, j] = rmsd
-                    cnt += 1
-            except:
-                continue
+            mol_probs = get_mol_probs(mol_pred, r_pred, num_gens, FF=False)
+            for _, mol_row in conf_df.iterrows():
+                mol_ref = deepcopy(mol_row.rd_mol)
+                for j in range(num_gens):
+                    rmsd = get_best_RMSD(mol_probs[j], mol_ref)
+                    cov_mat[cnt, j] = rmsd
+                cnt += 1
+
             cov_score = np.mean(cov_mat.min(-1) < 0.5)
             mat_score = np.sum(cov_mat.min(-1)) / conf_df.shape[0]
             covs.append(cov_score)
