@@ -61,6 +61,7 @@ def compute_mae():
         diffs.append(avg_diff)
 
     print(f'mean average error is {np.mean(diffs)}')
+    print(f'std of error is {np.std(diffs)}')
 
 
 if __name__ == "__main__":
