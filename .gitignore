@@ -6,3 +6,7 @@ logs*/
 *_net_*/
 *.txt
 *.out
+*.sdf
+*.pkl
+*.csv
+*samples/
