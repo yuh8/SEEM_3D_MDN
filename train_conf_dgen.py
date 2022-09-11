@@ -226,9 +226,8 @@ def _fixup_shape(x, y):
 
 if __name__ == "__main__":
     freeze_support()
-    ckpt_path = 'checkpoints/TransVAE/'
+    ckpt_path = 'checkpoints/TransVAE_1M/'
     create_folder(ckpt_path)
-    create_folder("TransVAE")
     create_folder("dec_net")
     create_folder("gdr_net")
     create_folder("g_net")
@@ -251,7 +250,7 @@ if __name__ == "__main__":
     callbacks = [tf.keras.callbacks.ModelCheckpoint(ckpt_path,
                                                     save_freq=1000,
                                                     save_weights_only=True),
-                 tf.keras.callbacks.TensorBoard('./logs_transvae', update_freq=10),
+                 tf.keras.callbacks.TensorBoard('./logs_transvae_1m', update_freq=10),
                  weight_adjuster]
 
     # compile model
@@ -262,7 +261,7 @@ if __name__ == "__main__":
     transvae.summary()
 
     try:
-        transvae.load_weights("./checkpoints/TransVAE/")
+        transvae.load_weights("./checkpoints/TransVAE_1M/")
     except:
         print('no exitsing model detected, training starts afresh')
         pass
