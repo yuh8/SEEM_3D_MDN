@@ -89,7 +89,7 @@ def compute_cov_mat(smiles_path):
     for _ in range(10):
         covs = []
         mats = []
-        for idx, smi in enumerate(smiles[:1000]):
+        for idx, smi in enumerate(smiles[:2000]):
             try:
                 mol_path = "/mnt/rdkit_folder/" + drugs_summ[smi]['pickle_path']
                 with open(mol_path, "rb") as f:
