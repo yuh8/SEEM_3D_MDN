@@ -159,7 +159,7 @@ class EncoderLayer(tf.keras.layers.Layer):
         return out2
 
 
-def get_g_net():
+def get_g_net(out_shape=3):
     inputs = tf.keras.layers.Input(shape=(MAX_NUM_ATOMS, MAX_NUM_ATOMS, FEATURE_DEPTH + 4))
     mask = tf.reduce_sum(tf.abs(inputs), axis=-1)
     mask = tf.reduce_sum(mask, axis=1, keepdims=True) <= 0
@@ -173,7 +173,7 @@ def get_g_net():
 
     h = tf.reduce_mean(x, axis=1)
     # (batch_size, 3)
-    y_prop = tf.keras.layers.Dense(3)(h)
+    y_prop = tf.keras.layers.Dense(out_shape)(h)
     return Model(inputs, y_prop, name='GNet')
 
 

@@ -1,14 +1,15 @@
-import math
+import numpy as np
 
 
 class RunningStats:
 
-    def __init__(self):
+    def __init__(self, size):
         self.n = 0
-        self.old_m = 0
-        self.new_m = 0
-        self.old_s = 0
-        self.new_s = 0
+        self.old_m = np.zeros(size)
+        self.new_m = np.zeros(size)
+        self.old_s = np.zeros(size)
+        self.new_s = np.zeros(size)
+        self.size = size
 
     def clear(self):
         self.n = 0
@@ -27,10 +28,10 @@ class RunningStats:
             self.old_s = self.new_s
 
     def mean(self):
-        return self.new_m if self.n else 0.0
+        return self.new_m if self.n else np.zeros(self.size)
 
     def variance(self):
-        return self.new_s / (self.n - 1) if self.n > 1 else 0.0
+        return self.new_s / (self.n - 1) if self.n > 1 else np.zeros(self.size)
 
     def standard_deviation(self):
-        return math.sqrt(self.variance())
+        return np.sqrt(self.variance())

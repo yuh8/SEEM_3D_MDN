@@ -22,7 +22,7 @@ def _destandardize_prop(r, mean_std):
 
 
 def load_models():
-    g_net = tf.keras.models.load_model('g_net_qm9_prop/GNet/')
+    g_net = tf.keras.models.load_model('g_net_qm9_prop_scaffold/GNet/')
     return g_net
 
 
@@ -67,7 +67,7 @@ def compute_mae():
 if __name__ == "__main__":
     freeze_support()
     g_net = load_models()
-    train_path = '/mnt/transvae_qm9_prop/train_data/train_batch/'
-    test_path = '/mnt/transvae_qm9_prop/test_data/test_batch/'
+    train_path = '/mnt/transvae_qm9_prop_scaffold/train_data/train_batch/'
+    test_path = '/mnt/transvae_qm9_prop_scaffold/test_data/test_batch/'
     mean_std = pickle_load(train_path + 'stats.pkl')
     compute_mae()

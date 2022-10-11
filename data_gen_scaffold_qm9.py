@@ -5,7 +5,6 @@ from collections import defaultdict
 from rdkit import Chem
 from rdkit.Chem.Scaffolds import MurckoScaffold
 from copy import deepcopy
-from src.graph_utils import draw_mol_with_idx
 from src.data_process_utils import mol_to_tensor
 from src.misc_utils import create_folder
 from src.running_stats import RunningStats
@@ -47,9 +46,9 @@ def scaffold_split(df_qm9_prop, frac_train=0.8, frac_valid=0.1, frac_test=0.1):
 
 def get_and_save_data_batch(qm9_df, data_idx, dest_data_path):
     suppl = Chem.SDMolSupplier('gdb9.sdf')
-    rs_homo = RunningStats()
-    rs_lumo = RunningStats()
-    rs_gap = RunningStats()
+    rs_homo = RunningStats(1)
+    rs_lumo = RunningStats(1)
+    rs_gap = RunningStats(1)
     batch = 0
     for mol_id in data_idx:
         mol_idx = int(mol_id.replace('gdb_', '')) - 1
@@ -57,7 +56,6 @@ def get_and_save_data_batch(qm9_df, data_idx, dest_data_path):
         try:
             g, _ = mol_to_tensor(deepcopy(mol))
         except Exception as e:
-            # draw_mol_with_idx(mol)
             print(e)
             continue
         row = qm9_df[qm9_df.mol_id == mol_id].iloc[0]
