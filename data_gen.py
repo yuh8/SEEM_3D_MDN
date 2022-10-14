@@ -109,7 +109,39 @@ def get_num_atoms_dist():
     breakpoint()
 
 
+def get_num_of_disconnected_graphs():
+    drugs_file = "/mnt/rdkit_folder/summary_drugs.json"
+    with open(drugs_file, "r") as f:
+        drugs_summ = json.load(f)
+
+    all_simles = list(drugs_summ.keys())
+    cnt_disconnected_graphs = 0
+    for idx, smi in enumerate(all_simles):
+        try:
+            mol_path = "/mnt/rdkit_folder/" + drugs_summ[smi]['pickle_path']
+            with open(mol_path, "rb") as f:
+                mol_dict = pickle.load(f)
+        except Exception as e:
+            print(e)
+            continue
+
+        conf_df = pd.DataFrame(mol_dict['conformers'])
+        conf_df.sort_values(by=['boltzmannweight'], ascending=False, inplace=True)
+        mol_row = conf_df.iloc[0]
+        mol = mol_row.rd_mol
+
+        try:
+            g, r = mol_to_tensor(mol)
+        except Exception as e:
+            # draw_mol_with_idx(mol)
+            cnt_disconnected_graphs += 1
+
+        if idx % 1000 == 0:
+            print(f'percentage of disconnected graphs = {np.round(cnt_disconnected_graphs/(idx+1),4)}')
+
+
 if __name__ == "__main__":
+    get_num_of_disconnected_graphs()
     get_num_atoms_dist()
     get_train_val_test_smiles()
     get_and_save_data_batch('/mnt/transvae/train_data/train_batch/smiles.pkl',
