@@ -72,13 +72,13 @@ def get_and_save_data_batch(smiles_path, dest_data_path, batch_num=200000):
         break
 
 
-def get_num_atoms_dist():
+def get_num_of_disconnected_graphs():
     drugs_file = "/mnt/rdkit_folder/summary_qm9.json"
     with open(drugs_file, "r") as f:
         drugs_summ = json.load(f)
 
     all_simles = list(drugs_summ.keys())
-    num_atoms = []
+    cnt_disconnected_graphs = 0
     for idx, smi in enumerate(all_simles):
         try:
             mol_path = "/mnt/rdkit_folder/" + drugs_summ[smi]['pickle_path']
@@ -90,19 +90,21 @@ def get_num_atoms_dist():
 
         conf_df = pd.DataFrame(mol_dict['conformers'])
         conf_df.sort_values(by=['boltzmannweight'], ascending=False, inplace=True)
-        if conf_df.shape[0] < 1:
-            continue
-        num_atoms.append(conf_df.iloc[0].rd_mol.GetNumAtoms())
+        mol_row = conf_df.iloc[0]
+        mol = mol_row.rd_mol
 
-        if len(num_atoms) % 1000 == 0:
-            pct_98 = np.percentile(num_atoms, 98)
-            print("{0}/{1} done with 98 pct {2}".format(idx, len(all_simles), pct_98))
+        try:
+            g, r = mol_to_tensor(mol)
+        except Exception as e:
+            # draw_mol_with_idx(mol)
+            cnt_disconnected_graphs += 1
 
-    breakpoint()
+        if idx % 1000 == 0:
+            print(f'percentage of disconnected graphs = {np.round(cnt_disconnected_graphs/(idx+1),4)}')
 
 
 if __name__ == "__main__":
-    # get_num_atoms_dist()
+    # get_num_of_disconnected_graphs()
     get_train_val_test_smiles()
     get_and_save_data_batch('/mnt/transvae_qm9/train_data/train_batch/smiles.pkl',
                             '/mnt/transvae_qm9/train_data/train_batch/')

@@ -10,3 +10,4 @@ logs*/
 *.pkl
 *.sdf
 *.csv
+*.log
