@@ -141,7 +141,7 @@ def compute_cov_mat(smiles_path):
 
             cnt = 0
             try:
-                mol_probs = get_mol_probs(mol_pred, r_pred, num_gens, FF=False)
+                mol_probs = get_mol_probs(mol_pred, r_pred, num_gens, FF=True)
                 for _, mol_row in conf_df.iterrows():
                     mol_ref = deepcopy(mol_row.rd_mol)
                     for j in range(num_gens):
@@ -150,34 +150,36 @@ def compute_cov_mat(smiles_path):
                     cnt += 1
             except:
                 continue
-            cov_score = np.mean(cov_mat.min(-1) < 1.25)
-            mat_score = np.sum(cov_mat.min(-1)) / conf_df.shape[0]
+            cov_score = (np.mean(cov_mat.min(-1) < 1.25),
+                         np.mean(cov_mat.min(0) < 1.25))
+            mat_score = (np.mean(cov_mat.min(-1)),
+                         np.mean(cov_mat.min(0)))
             covs.append(cov_score)
             mats.append(mat_score)
-            cov_mean = np.round(np.mean(covs), 4)
-            cov_med = np.round(np.median(covs), 4)
-            mat_mean = np.round(np.mean(mats), 4)
-            mat_med = np.round(np.median(mats), 4)
-            print(f'cov_mean = {cov_mean}, cov_med = {cov_med}, mat_mean = {mat_mean}, mat_med = {mat_med} for {idx} th mol')
+            cov_mean = np.round(np.mean(covs, axis=0), 4)
+            cov_med = np.round(np.median(covs, axis=0), 4)
+            mat_mean = np.round(np.mean(mats, axis=0), 4)
+            mat_med = np.round(np.median(mats, axis=0), 4)
+            print(f'cov_mean_RP = {cov_mean}, cov_med_RP = {cov_med}, mat_mean_RP = {mat_mean}, mat_med_RP = {mat_med} for {idx} th mol')
             if len(covs) == 200:
                 break
         cov_means.append(cov_mean)
         cov_meds.append(cov_med)
         mat_means.append(mat_mean)
         mat_meds.append(mat_med)
-    cov_means_mean = np.round(np.mean(cov_means), 4)
-    cov_means_std = np.round(np.std(cov_means), 4)
-    cov_meds_mean = np.round(np.mean(cov_meds), 4)
-    cov_meds_std = np.round(np.std(cov_meds), 4)
+    cov_means_mean = np.round(np.mean(cov_means, axis=0), 4)
+    cov_means_std = np.round(np.std(cov_means, axis=0), 4)
+    cov_meds_mean = np.round(np.mean(cov_meds, axis=0), 4)
+    cov_meds_std = np.round(np.std(cov_meds, axis=0), 4)
 
-    mat_means_mean = np.round(np.mean(mat_means), 4)
-    mat_means_std = np.round(np.std(mat_means), 4)
-    mat_meds_mean = np.round(np.mean(mat_meds), 4)
-    mat_meds_std = np.round(np.std(mat_meds), 4)
-    print(f'cov_means_mean = {cov_means_mean} with std {cov_means_std}')
-    print(f'cov_meds_mean = {cov_meds_mean} with std {cov_meds_std}')
-    print(f'mat_means_mean = {mat_means_mean} with std {mat_means_std}')
-    print(f'mat_meds_mean = {mat_meds_mean} with std {mat_meds_std}')
+    mat_means_mean = np.round(np.mean(mat_means, axis=0), 4)
+    mat_means_std = np.round(np.std(mat_means, axis=0), 4)
+    mat_meds_mean = np.round(np.mean(mat_meds, axis=0), 4)
+    mat_meds_std = np.round(np.std(mat_meds, axis=0), 4)
+    print(f'cov_means_RP_mean = {cov_means_mean} with std {cov_means_std}')
+    print(f'cov_meds_RP_mean = {cov_meds_mean} with std {cov_meds_std}')
+    print(f'mat_means_RP_mean = {mat_means_mean} with std {mat_means_std}')
+    print(f'mat_meds_RP_mean = {mat_meds_mean} with std {mat_meds_std}')
 
 
 if __name__ == "__main__":
