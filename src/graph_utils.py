@@ -36,11 +36,16 @@ def mol_to_extended_graph(molecule: Mol, seed: int = 0) -> Graph:
     return graph, max_neighbor_len
 
 
+def mol_to_graph(molecule: Mol) -> Graph:
+    graph = build_bond_graph(molecule)
+    return graph, 1
+
+
 def build_bond_graph(molecule: Mol) -> Graph:
     graph = Graph()
     for bond in molecule.GetBonds():
         source_index, sink_index = bond.GetBeginAtomIdx(), bond.GetEndAtomIdx()
-        graph.add_edge(source_index, sink_index)
+        graph.add_edge(source_index, sink_index, kind=1)
     return graph
 
 

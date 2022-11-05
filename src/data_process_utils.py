@@ -1,5 +1,5 @@
 import numpy as np
-from .graph_utils import mol_to_extended_graph
+from .graph_utils import mol_to_graph, mol_to_extended_graph
 from .CONSTS import (BOND_RINGTYPE_SIZE,
                      MAX_NUM_ATOMS, FEATURE_DEPTH,
                      CHARGES, ATOM_LIST, ATOM_CHIR_NAMES,
@@ -98,6 +98,7 @@ def mol_to_tensor(mol):
     R = np.zeros((MAX_NUM_ATOMS, 3))
     conf = mol.GetConformer(0)
     graph, max_neighbor_len = mol_to_extended_graph(mol)
+    # graph, max_neighbor_len = mol_to_graph(mol)
 
     for atom in mol.GetAtoms():
         atom_idx = atom.GetIdx()
@@ -128,7 +129,7 @@ def mol_to_d_dist(conf_df):
 
     for _, mol_row in conf_df.iterrows():
         mol = mol_row.rd_mol
-        graph, max_neighbor_len = mol_to_extended_graph(mol)
+        graph, max_neighbor_len = mol_to_graph(mol)
 
         for (source_idx, sink_idx) in graph.edges:
             kind = graph.edges[(source_idx, sink_idx)]['kind']
