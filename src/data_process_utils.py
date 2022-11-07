@@ -97,8 +97,8 @@ def mol_to_tensor(mol):
     smi_graph = np.zeros((MAX_NUM_ATOMS, MAX_NUM_ATOMS, FEATURE_DEPTH + 4))
     R = np.zeros((MAX_NUM_ATOMS, 3))
     conf = mol.GetConformer(0)
-    graph, max_neighbor_len = mol_to_extended_graph(mol)
-    # graph, max_neighbor_len = mol_to_graph(mol)
+    # graph, max_neighbor_len = mol_to_extended_graph(mol)
+    graph, max_neighbor_len = mol_to_graph(mol)
 
     for atom in mol.GetAtoms():
         atom_idx = atom.GetIdx()
