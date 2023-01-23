@@ -7,7 +7,7 @@ import numpy as np
 import pandas as pd
 import tensorflow as tf
 import tensorflow_probability as tfp
-import matplotlib.pyplot as plt
+# import matplotlib.pyplot as plt
 from copy import deepcopy
 from multiprocessing import freeze_support
 from rdkit.Geometry import Point3D
@@ -45,15 +45,15 @@ def loss_func(y_true, y_pred):
     return loss
 
 
-def plot_3d_scatter(pos):
-    fig = plt.figure()
-    ax = fig.add_subplot(111, projection='3d')
-    ax.scatter(pos[:, 0], pos[:, 1], pos[:, 2], c='b', marker='o')
-    ax.set_xlabel('X-axis')
-    ax.set_ylabel('Y-axis')
-    ax.set_zlabel('Z-axis')
+# def plot_3d_scatter(pos):
+#     fig = plt.figure()
+#     ax = fig.add_subplot(111, projection='3d')
+#     ax.scatter(pos[:, 0], pos[:, 1], pos[:, 2], c='b', marker='o')
+#     ax.set_xlabel('X-axis')
+#     ax.set_ylabel('Y-axis')
+#     ax.set_zlabel('Z-axis')
 
-    plt.savefig('./conf_1.png')
+#     plt.savefig('./conf_1.png')
 
 
 def get_best_RMSD(probe, ref, prbid=-1, refid=-1):
@@ -63,7 +63,7 @@ def get_best_RMSD(probe, ref, prbid=-1, refid=-1):
     return rmsd
 
 
-def get_prediction(mol, sample_size):
+def get_prediction(mol, sample_size, g_net, decoder_net):
     mol_origin = deepcopy(mol)
     gr, _ = mol_to_tensor(mol_origin)
     g = np.expand_dims(gr, axis=0)[..., :-4]
@@ -92,8 +92,8 @@ def get_mol_probs(mol_pred, r_pred, num_gens, FF=True):
     return mol_probs
 
 
-def compute_cov_mat(smiles_path):
-    drugs_file = "/mnt/rdkit_folder/summary_drugs.json"
+def compute_cov_mat(smiles_path, g_net, decoder_net):
+    drugs_file = "/mnt/raw_data/rdkit_folder/summary_drugs.json"
     with open(drugs_file, "r") as f:
         drugs_summ = json.load(f)
 
@@ -106,12 +106,14 @@ def compute_cov_mat(smiles_path):
 
     covs = []
     mats = []
+    breakpoint()
     for idx, smi in enumerate(smiles):
         try:
-            mol_path = "/mnt/rdkit_folder/" + drugs_summ[smi]['pickle_path']
+            mol_path = "/mnt/raw_data/rdkit_folder/" + drugs_summ[smi]['pickle_path']
             with open(mol_path, "rb") as f:
                 mol_dict = pickle.load(f)
         except:
+            print('smiles missing')
             continue
 
         conf_df = pd.DataFrame(mol_dict['conformers'])
@@ -130,7 +132,7 @@ def compute_cov_mat(smiles_path):
         mol_pred = deepcopy(conf_df.iloc[0].rd_mol)
 
         try:
-            r_pred = get_prediction(mol_pred, num_gens)
+            r_pred = get_prediction(mol_pred, num_gens, g_net, decoder_net)
         except:
             continue
 
@@ -187,6 +189,7 @@ def compute_cov_mat(smiles_path):
 if __name__ == "__main__":
     freeze_support()
     g_net, decoder_net, _ = load_models()
-    test_path = '/mnt/transvae/test_data/test_batch/'
+    breakpoint()
+    test_path = '/mnt/raw_data/transvae/test_data/test_batch/'
 
     compute_cov_mat(test_path + 'smiles.pkl')

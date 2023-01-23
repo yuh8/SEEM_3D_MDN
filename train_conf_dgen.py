@@ -7,6 +7,7 @@ from tensorflow import keras
 from tensorflow.keras import Model
 from tensorflow.keras import callbacks
 from multiprocessing import freeze_support
+from test_conf_dgen import compute_cov_mat
 from src.embed_utils import get_g_net, get_gdr_net, get_decode_net
 from src.misc_utils import create_folder, align_conf, tf_contriod
 from src.CONSTS import (MAX_NUM_ATOMS, FEATURE_DEPTH, BATCH_SIZE, VAL_BATCH_SIZE,
@@ -231,9 +232,9 @@ if __name__ == "__main__":
     create_folder("dec_net")
     create_folder("gdr_net")
     create_folder("g_net")
-    train_path = '/mnt/transvae/train_data/train_batch/'
-    val_path = '/mnt/transvae/test_data/val_batch/'
-    test_path = '/mnt/transvae/test_data/test_batch/'
+    train_path = '/mnt/raw_data/transvae/train_data/train_batch/'
+    val_path = '/mnt/raw_data/transvae/test_data/val_batch/'
+    test_path = '/mnt/raw_data/transvae/test_data/test_batch/'
 
     train_steps = len(glob.glob(train_path + 'GDR_*.npz')) // BATCH_SIZE
     val_steps = len(glob.glob(val_path + 'GDR_*.npz')) // VAL_BATCH_SIZE
@@ -266,24 +267,24 @@ if __name__ == "__main__":
         print('no exitsing model detected, training starts afresh')
         pass
 
-    train_dataset = tf.data.Dataset.from_generator(
-        data_iterator_train,
-        output_types=(tf.float32, tf.float32),
-        output_shapes=((MAX_NUM_ATOMS, MAX_NUM_ATOMS, FEATURE_DEPTH + 4),
-                       (MAX_NUM_ATOMS, 3)))
+    # train_dataset = tf.data.Dataset.from_generator(
+    #     data_iterator_train,
+    #     output_types=(tf.float32, tf.float32),
+    #     output_shapes=((MAX_NUM_ATOMS, MAX_NUM_ATOMS, FEATURE_DEPTH + 4),
+    #                    (MAX_NUM_ATOMS, 3)))
 
-    train_dataset = train_dataset.shuffle(buffer_size=1000, seed=0,
-                                          reshuffle_each_iteration=True)
-    train_dataset = train_dataset.batch(BATCH_SIZE, drop_remainder=True).map(_fixup_shape)
-    train_dataset = train_dataset.prefetch(tf.data.experimental.AUTOTUNE)
+    # train_dataset = train_dataset.shuffle(buffer_size=1000, seed=0,
+    #                                       reshuffle_each_iteration=True)
+    # train_dataset = train_dataset.batch(BATCH_SIZE, drop_remainder=True).map(_fixup_shape)
+    # train_dataset = train_dataset.prefetch(tf.data.experimental.AUTOTUNE)
 
-    val_dataset = tf.data.Dataset.from_generator(
-        data_iterator_val,
-        output_types=(tf.float32, tf.float32),
-        output_shapes=((MAX_NUM_ATOMS, MAX_NUM_ATOMS, FEATURE_DEPTH + 4),
-                       (MAX_NUM_ATOMS, 3)))
-    val_dataset = val_dataset.batch(VAL_BATCH_SIZE, drop_remainder=True).map(_fixup_shape)
-    val_dataset = val_dataset.prefetch(tf.data.experimental.AUTOTUNE)
+    # val_dataset = tf.data.Dataset.from_generator(
+    #     data_iterator_val,
+    #     output_types=(tf.float32, tf.float32),
+    #     output_shapes=((MAX_NUM_ATOMS, MAX_NUM_ATOMS, FEATURE_DEPTH + 4),
+    #                    (MAX_NUM_ATOMS, 3)))
+    # val_dataset = val_dataset.batch(VAL_BATCH_SIZE, drop_remainder=True).map(_fixup_shape)
+    # val_dataset = val_dataset.prefetch(tf.data.experimental.AUTOTUNE)
 
     test_dataset = tf.data.Dataset.from_generator(
         data_iterator_test,
@@ -293,14 +294,16 @@ if __name__ == "__main__":
     test_dataset = test_dataset.batch(VAL_BATCH_SIZE, drop_remainder=True).map(_fixup_shape)
     test_dataset = test_dataset.prefetch(tf.data.experimental.AUTOTUNE)
 
-    transvae.fit(train_dataset,
-                 epochs=MAX_EPOCH,
-                 validation_data=val_dataset,
-                 validation_steps=val_steps,
-                 callbacks=callbacks,
-                 steps_per_epoch=train_steps)
-    res = transvae.evaluate(test_dataset,
-                            return_dict=True)
+    # transvae.fit(train_dataset,
+    #              epochs=MAX_EPOCH,
+    #              validation_data=val_dataset,
+    #              validation_steps=val_steps,
+    #              callbacks=callbacks,
+    #              steps_per_epoch=train_steps)
+    # res = transvae.evaluate(test_dataset,
+    #                         return_dict=True)
+
+    test_path = '/mnt/raw_data/transvae/test_data/test_batch/'
 
     # save trained model
     g_net.compile(optimizer='SGD', loss=None)
@@ -309,3 +312,5 @@ if __name__ == "__main__":
     gdr_net.save('gr_net/' + 'GDRNet')
     dec_net.compile(optimizer='adam', loss=None)
     dec_net.save('dec_net/' + 'DecNet')
+
+    compute_cov_mat(test_path + 'smiles.pkl', g_net, dec_net)
