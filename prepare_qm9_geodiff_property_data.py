@@ -1,4 +1,5 @@
 import pickle
+import numpy as np
 import torch_geometric
 
 
@@ -8,9 +9,9 @@ with open('qm9_property.pkl', 'rb') as fp:
 packed_data = {}
 for _data in qm9_property_mol_data:
     if _data.smiles in packed_data.keys():
-        packed_data[_data.smiles].append(_data.rdmol)
+        packed_data[_data.smiles].append((_data.rdmol, np.array(_data.pos)))
     else:
-        packed_data[_data.smiles] = [_data.rdmol]
+        packed_data[_data.smiles] = [(_data.rdmol, np.array(_data.pos))]
 
 
 with open('packed_qm9_property.pkl', 'wb') as fp:
