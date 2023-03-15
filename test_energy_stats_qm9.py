@@ -43,7 +43,7 @@ def get_mol_probs(mol_pred, r_pred, num_gens, FF=True):
     mol_probs = []
     for j in tqdm(range(num_gens)):
         mol_prob = deepcopy(mol_pred)
-        _conf = mol_prob.GetConformer()
+        _conf = mol_prob.GetConformer(0)
         for i in range(mol_prob.GetNumAtoms()):
             _conf.SetAtomPosition(i, r_pred[j][i].tolist())
         if FF:
@@ -110,14 +110,14 @@ def compute_energy_stats(num_gens, g_net, decoder_net):
         mol_pred = deepcopy(rd_mol)
         mol_origin = deepcopy(rd_mol)
         num_refs = len(drugs_summ[smi]['confs'])
-        num_gens = 2*num_refs
+        num_gens = 50
         try:
             r_pred = get_prediction(mol_pred, num_gens, g_net, decoder_net)
         except:
             continue
 
-        mol_probs = get_mol_probs(mol_pred, r_pred, num_gens, FF=False)
-        mol_refs = get_mol_probs(mol_origin, drugs_summ[smi]['confs'], num_refs,FF=False)
+        mol_probs = get_mol_probs(mol_pred, r_pred, num_gens, FF=True)
+        mol_refs = get_mol_probs(mol_origin, drugs_summ[smi]['confs'], num_refs, FF=False)
 
         prop_gen = get_ensemble_energy(prop_cal(mol_probs)) * 27.211
         prop_gts = get_ensemble_energy(prop_cal(mol_refs)) * 27.211
