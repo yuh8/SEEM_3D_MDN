@@ -266,41 +266,41 @@ if __name__ == "__main__":
         print('no exitsing model detected, training starts afresh')
         pass
 
-    train_dataset = tf.data.Dataset.from_generator(
-        data_iterator_train,
-        output_types=(tf.float32, tf.float32),
-        output_shapes=((MAX_NUM_ATOMS, MAX_NUM_ATOMS, FEATURE_DEPTH + 4),
-                       (MAX_NUM_ATOMS, 3)))
+    # train_dataset = tf.data.Dataset.from_generator(
+    #     data_iterator_train,
+    #     output_types=(tf.float32, tf.float32),
+    #     output_shapes=((MAX_NUM_ATOMS, MAX_NUM_ATOMS, FEATURE_DEPTH + 4),
+    #                    (MAX_NUM_ATOMS, 3)))
 
-    train_dataset = train_dataset.shuffle(buffer_size=1000, seed=0,
-                                          reshuffle_each_iteration=True)
-    train_dataset = train_dataset.batch(BATCH_SIZE, drop_remainder=True).map(_fixup_shape)
-    train_dataset = train_dataset.prefetch(tf.data.experimental.AUTOTUNE)
+    # train_dataset = train_dataset.shuffle(buffer_size=1000, seed=0,
+    #                                       reshuffle_each_iteration=True)
+    # train_dataset = train_dataset.batch(BATCH_SIZE, drop_remainder=True).map(_fixup_shape)
+    # train_dataset = train_dataset.prefetch(tf.data.experimental.AUTOTUNE)
 
-    val_dataset = tf.data.Dataset.from_generator(
-        data_iterator_val,
-        output_types=(tf.float32, tf.float32),
-        output_shapes=((MAX_NUM_ATOMS, MAX_NUM_ATOMS, FEATURE_DEPTH + 4),
-                       (MAX_NUM_ATOMS, 3)))
-    val_dataset = val_dataset.batch(VAL_BATCH_SIZE, drop_remainder=True).map(_fixup_shape)
-    val_dataset = val_dataset.prefetch(tf.data.experimental.AUTOTUNE)
+    # val_dataset = tf.data.Dataset.from_generator(
+    #     data_iterator_val,
+    #     output_types=(tf.float32, tf.float32),
+    #     output_shapes=((MAX_NUM_ATOMS, MAX_NUM_ATOMS, FEATURE_DEPTH + 4),
+    #                    (MAX_NUM_ATOMS, 3)))
+    # val_dataset = val_dataset.batch(VAL_BATCH_SIZE, drop_remainder=True).map(_fixup_shape)
+    # val_dataset = val_dataset.prefetch(tf.data.experimental.AUTOTUNE)
 
-    test_dataset = tf.data.Dataset.from_generator(
-        data_iterator_test,
-        output_types=(tf.float32, tf.float32),
-        output_shapes=((MAX_NUM_ATOMS, MAX_NUM_ATOMS, FEATURE_DEPTH + 4),
-                       (MAX_NUM_ATOMS, 3)))
-    test_dataset = test_dataset.batch(VAL_BATCH_SIZE, drop_remainder=True).map(_fixup_shape)
-    test_dataset = test_dataset.prefetch(tf.data.experimental.AUTOTUNE)
+    # test_dataset = tf.data.Dataset.from_generator(
+    #     data_iterator_test,
+    #     output_types=(tf.float32, tf.float32),
+    #     output_shapes=((MAX_NUM_ATOMS, MAX_NUM_ATOMS, FEATURE_DEPTH + 4),
+    #                    (MAX_NUM_ATOMS, 3)))
+    # test_dataset = test_dataset.batch(VAL_BATCH_SIZE, drop_remainder=True).map(_fixup_shape)
+    # test_dataset = test_dataset.prefetch(tf.data.experimental.AUTOTUNE)
 
-    transvae.fit(train_dataset,
-                 epochs=MAX_EPOCH,
-                 validation_data=val_dataset,
-                 validation_steps=val_steps,
-                 callbacks=callbacks,
-                 steps_per_epoch=train_steps)
-    res = transvae.evaluate(test_dataset,
-                            return_dict=True)
+    # transvae.fit(train_dataset,
+    #              epochs=MAX_EPOCH,
+    #              validation_data=val_dataset,
+    #              validation_steps=val_steps,
+    #              callbacks=callbacks,
+    #              steps_per_epoch=train_steps)
+    # res = transvae.evaluate(test_dataset,
+    #                         return_dict=True)
 
     # save trained model
     g_net.compile(optimizer='SGD', loss=None)

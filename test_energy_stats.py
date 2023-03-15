@@ -5,14 +5,10 @@ from random import shuffle
 import numpy as np
 import pandas as pd
 import tensorflow as tf
-import matplotlib.pyplot as plt
 from copy import deepcopy
+from psikit import Psikit
 from multiprocessing import freeze_support
-from rdkit.Geometry import Point3D
-from rdkit.Chem.Draw import MolsToGridImage
 from rdkit.Chem.rdForceFieldHelpers import MMFFOptimizeMolecule
-from rdkit.Chem.rdmolops import RemoveHs
-from rdkit.Chem.rdMolAlign import GetBestRMS
 from src.data_process_utils import mol_to_tensor
 from src.misc_utils import pickle_load
 from src.CONSTS import HIDDEN_SIZE, MAX_NUM_ATOMS, TF_EPS
@@ -55,90 +51,92 @@ def get_mol_probs(mol_pred, r_pred, num_gens, FF=True):
     return mol_probs
 
 
-def compute_energy_stats():
+class PropertyCalculator(object):
+    def __init__(self, threads, memory, seed):
+        super().__init__()
+        self.pk = Psikit(threads=threads, memory=memory)
+        self.seed = seed
+
+    def __call__(self, rdmols):
+        mol_ensemble_energy = []
+        mol_ensemble_homo = []
+        mol_ensemble_lumo = []
+        mol_ensemble_dipo = []
+        for rdmol in rdmols:
+            self.pk.mol = rdmol
+            try:
+                energy, homo, lumo, dipo = self.pk.energy(), self.pk.HOMO, self.pk.LUMO, self.pk.dipolemoment[-1]
+                mol_ensemble_energy.append(energy)
+                mol_ensemble_homo.append(homo)
+                mol_ensemble_lumo.append(lumo)
+                mol_ensemble_dipo.append(dipo)
+            except:
+                pass
+        out_data = {}
+        out_data['energy'] = mol_ensemble_energy
+        out_data['homo'] = mol_ensemble_homo
+        out_data['lumo'] = mol_ensemble_lumo
+        out_data['dipo'] = mol_ensemble_dipo
+        return out_data
+
+
+def get_ensemble_energy(out_data):
+    """
+    Args:
+        props: (4, num_confs)
+    """
+    avg_ener = np.mean(out_data['energy'])
+    low_ener = np.min(out_data['energy'])
+    gaps = np.abs(out_data['homo'] - out_data['lumo'])
+    avg_gap = np.mean(gaps)
+    min_gap = np.min(gaps)
+    max_gap = np.max(gaps)
+    return np.array([
+        avg_ener, low_ener, avg_gap, min_gap, max_gap,
+    ])
+
+
+def compute_energy_stats(num_gens=50):
     with open('packed_qm9_property.pkl', 'rb') as fp:
         drugs_summ = pickle.load(fp)
 
+    prop_cal = PropertyCalculator(threads=8, memory=16, seed=2021)
+    all_diff = []
     for smi in drugs_summ.keys():
-        try:
-            mol_path = "/mnt/rdkit_folder/" + drugs_summ[smi]['pickle_path']
-            with open(mol_path, "rb") as f:
-                mol_dict = pickle.load(f)
-        except:
-            continue
 
-        conf_df = pd.DataFrame(mol_dict['conformers'])
-        conf_df.sort_values(by=['boltzmannweight'], ascending=False, inplace=True)
+        rd_mol = drugs_summ[smi]['rdmol']
 
-        num_refs = conf_df.shape[0]
-
-        if num_refs < 50:
-            continue
-
-        if num_refs > 500:
-            continue
-
-        num_gens = num_refs * 2
-
-        mol_pred = deepcopy(conf_df.iloc[0].rd_mol)
+        mol_pred = deepcopy(rd_mol)
+        mol_origin = deepcopy(rd_mol)
 
         try:
             r_pred = get_prediction(mol_pred, num_gens)
         except:
             continue
 
-        cov_mat = np.zeros((conf_df.shape[0], num_gens))
-
-        cnt = 0
         mol_probs = get_mol_probs(mol_pred, r_pred, num_gens, FF=False)
-        try:
-            for _, mol_row in conf_df.iterrows():
-                mol_ref = deepcopy(mol_row.rd_mol)
-                for j in range(num_gens):
-                    rmsd = get_best_RMSD(mol_probs[j], mol_ref)
-                    cov_mat[cnt, j] = rmsd
-                cnt += 1
-        except:
-            continue
+        mol_refs = get_mol_probs(mol_origin, drugs_summ[smi]['pos'], len(drugs_summ[smi]['pos']), FF=False)
 
-        cov_score = np.mean(cov_mat.min(-1) < 0.5)
-        mat_score = np.sum(cov_mat.min(-1)) / conf_df.shape[0]
-        covs.append(cov_score)
-        mats.append(mat_score)
-        cov_mean = np.round(np.mean(covs), 4)
-        cov_med = np.round(np.median(covs), 4)
-        mat_mean = np.round(np.mean(mats), 4)
-        mat_med = np.round(np.median(mats), 4)
-        print(f'cov_mean = {cov_mean}, cov_med = {cov_med}, mat_mean = {mat_mean}, mat_med = {mat_med} for {idx} th mol')
-        if len(covs) == 200:
-            cov_means.append(cov_mean)
-            cov_meds.append(cov_med)
-            mat_means.append(mat_mean)
-            mat_meds.append(mat_med)
-            covs = []
-            mats = []
+        prop_gen = get_ensemble_energy(prop_cal(mol_probs))
+        prop_gts = get_ensemble_energy(prop_cal(mol_refs))
+        prop_gen = np.abs(prop_gts - prop_gen)
+        prop_diff = np.abs(prop_gts - prop_gen)
 
-        if len(cov_means) == 10:
-            break
+        print('\nProperty: %s' % smi)
+        print('  Gts :', prop_gts)
+        print('  Gen :', prop_gen)
+        print('  Diff:', prop_diff)
+        all_diff.append(prop_diff.reshape(1, -1))
+    all_diff = np.vstack(all_diff)  # (num_mols, 4)
+    print(all_diff.shape)
 
-    cov_means_mean = np.round(np.mean(cov_means), 4)
-    cov_means_std = np.round(np.std(cov_means), 4)
-    cov_meds_mean = np.round(np.mean(cov_meds), 4)
-    cov_meds_std = np.round(np.std(cov_meds), 4)
-
-    mat_means_mean = np.round(np.mean(mat_means), 4)
-    mat_means_std = np.round(np.std(mat_means), 4)
-    mat_meds_mean = np.round(np.mean(mat_meds), 4)
-    mat_meds_std = np.round(np.std(mat_meds), 4)
-    print(f'cov_means_mean = {cov_means_mean} with std {cov_means_std}')
-    print(f'cov_meds_mean = {cov_meds_mean} with std {cov_meds_std}')
-    print(f'mat_means_mean = {mat_means_mean} with std {mat_means_std}')
-    print(f'mat_meds_mean = {mat_meds_mean} with std {mat_meds_std}')
+    print('[Difference]')
+    print('  Mean:  ', np.mean(all_diff, axis=0))
+    print('  Median:', np.median(all_diff, axis=0))
+    print('  Std:   ', np.std(all_diff, axis=0))
 
 
 if __name__ == "__main__":
     freeze_support()
     g_net, decoder_net, _ = load_models()
-    test_path = '/mnt/transvae_qm9/test_data/test_batch/'
-
-    compute_cov_mat(test_path + 'smiles.pkl')
+    compute_energy_stats()
