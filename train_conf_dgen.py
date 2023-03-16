@@ -7,7 +7,7 @@ from tensorflow import keras
 from tensorflow.keras import Model
 from tensorflow.keras import callbacks
 from multiprocessing import freeze_support
-from test_energy_stats import compute_energy_stats
+from test_energy_stats_qm9 import compute_energy_stats
 from src.embed_utils import get_g_net, get_gdr_net, get_decode_net
 from src.misc_utils import create_folder, align_conf, tf_contriod
 from src.CONSTS import (MAX_NUM_ATOMS, FEATURE_DEPTH, BATCH_SIZE, VAL_BATCH_SIZE,
@@ -303,7 +303,9 @@ if __name__ == "__main__":
     # res = transvae.evaluate(test_dataset,
     #                         return_dict=True)
 
-    compute_energy_stats(50, g_net, dec_net)
+    test_path = '/mnt/raw_data/transvae_qm9/test_data/test_batch/'
+    compute_energy_stats(test_path + 'smiles.pkl', g_net, dec_net)
+    # compute_cov_mat(test_path + 'smiles.pkl', g_net, dec_net)
 
     # save trained model
     g_net.compile(optimizer='SGD', loss=None)

@@ -78,3 +78,139 @@ HF: DIIS                            :     62.300u      6.917s     10.703w    460
 HF: Form C                          :    110.583u     10.000s     19.124w    460 calls
 
 **************************************************************************************
+
+Host: iZbp1fiaizyql9luphff4fZ
+
+Timers On : Wed Mar 15 19:09:58 2023
+Timers Off: Wed Mar 15 19:09:59 2023
+
+Wall Time:        0.68 seconds
+
+                                                       Time (seconds)
+Module                                       User      System        Wall        Calls
+
+--------------------------------------------------------------------------------------
+
+**************************************************************************************
+
+Host: iZbp1fiaizyql9luphff4fZ
+
+Timers On : Wed Mar 15 19:15:19 2023
+Timers Off: Wed Mar 15 19:44:13 2023
+
+Wall Time:     1734.20 seconds
+
+                                                       Time (seconds)
+Module                                       User      System        Wall        Calls
+DFH: sparsity prep                  :     17.833u      0.000s     12.750w    117 calls
+DFH: initialize()                   :   2594.983u    453.083s    501.530w    117 calls
+DFH: AO Construction                :    627.483u     68.850s     82.245w    117 calls
+DFH: AO-Met. Contraction            :    858.917u    131.683s    117.271w    117 calls
+HF: Form core H                     :     12.167u     24.133s      4.368w    117 calls
+HF: Form S/X                        :     87.317u     17.100s     12.418w    117 calls
+HF: Guess                           :    727.850u   1060.950s    249.419w    117 calls
+SAD Guess                           :    683.800u   1048.700s    242.746w    117 calls
+HF: Form G                          :   2737.667u    609.117s    402.125w   1176 calls
+JK: D                               :     20.900u      4.117s      2.873w   1176 calls
+JK: USO2AO                          :      1.567u      0.700s      0.213w   1176 calls
+JK: JK                              :   2697.050u    601.400s    395.394w   1176 calls
+DFH: compute_JK()                   :   2697.000u    601.300s    395.378w   1176 calls
+DFH: Grabbing AOs                   :      0.050u      0.017s      0.005w   1176 calls
+DFH: compute_J                      :    299.700u    275.000s     67.425w   1176 calls
+DFH: compute_K                      :   2382.050u    282.517s    320.946w   1176 calls
+JK: AO2USO                          :      0.017u      0.000s      0.004w   1176 calls
+HF: Form F                          :     60.633u    119.083s     19.079w   1176 calls
+HF: Form D                          :     19.300u      2.950s      2.876w   1176 calls
+HF: DIIS                            :    201.367u    112.467s     36.350w   1059 calls
+DIISManager::add_entry              :     24.100u      4.767s      3.312w   1059 calls
+DIISManager::extrapolate            :     60.617u     12.483s      8.359w   1059 calls
+bMatrix setup                       :     48.817u      9.350s      6.760w   1059 calls
+bMatrix pseudoinverse               :      1.033u      0.333s      0.123w   1059 calls
+New vector                          :     10.567u      2.783s      1.450w   1059 calls
+HF: Form C                          :    795.567u    100.333s    106.453w   1059 calls
+
+--------------------------------------------------------------------------------------
+DFH: sparsity prep                  :     17.833u      0.000s     12.750w    117 calls
+DFH: initialize()                   :   2594.983u    453.083s    501.530w    117 calls
+| DFH: AO Construction              :    627.483u     68.850s     82.245w    117 calls
+| DFH: AO-Met. Contraction          :    858.917u    131.683s    117.271w    117 calls
+HF: Form core H                     :     12.167u     24.133s      4.368w    117 calls
+HF: Form S/X                        :     87.317u     17.100s     12.418w    117 calls
+HF: Guess                           :    727.850u   1060.950s    249.419w    117 calls
+| SAD Guess                         :    683.800u   1048.700s    242.746w    117 calls
+HF: Form G                          :   2737.667u    609.117s    402.125w   1176 calls
+| JK: D                             :     20.900u      4.117s      2.873w   1176 calls
+| JK: USO2AO                        :      1.567u      0.700s      0.213w   1176 calls
+| JK: JK                            :   2697.050u    601.400s    395.394w   1176 calls
+| | DFH: compute_JK()               :   2697.000u    601.300s    395.378w   1176 calls
+| | | DFH: Grabbing AOs             :      0.050u      0.017s      0.005w   1176 calls
+| | | DFH: compute_J                :    299.700u    275.000s     67.425w   1176 calls
+| | | DFH: compute_K                :   2382.050u    282.517s    320.946w   1176 calls
+| JK: AO2USO                        :      0.017u      0.000s      0.004w   1176 calls
+HF: Form F                          :     60.633u    119.083s     19.079w   1176 calls
+HF: Form D                          :     19.300u      2.950s      2.876w   1176 calls
+HF: DIIS                            :    201.367u    112.467s     36.350w   1059 calls
+| DIISManager::add_entry            :     24.100u      4.767s      3.312w   1059 calls
+| DIISManager::extrapolate          :     60.617u     12.483s      8.359w   1059 calls
+| | bMatrix setup                   :     48.817u      9.350s      6.760w   1059 calls
+| | bMatrix pseudoinverse           :      1.033u      0.333s      0.123w   1059 calls
+| | New vector                      :     10.567u      2.783s      1.450w   1059 calls
+HF: Form C                          :    795.567u    100.333s    106.453w   1059 calls
+
+**************************************************************************************
+
+Host: iZbp1fiaizyql9luphff4fZ
+
+Timers On : Wed Mar 15 19:48:14 2023
+Timers Off: Wed Mar 15 19:55:42 2023
+
+Wall Time:      448.69 seconds
+
+                                                       Time (seconds)
+Module                                       User      System        Wall        Calls
+
+--------------------------------------------------------------------------------------
+
+**************************************************************************************
+
+Host: iZbp1fiaizyql9luphff4fZ
+
+Timers On : Wed Mar 15 20:12:32 2023
+Timers Off: Wed Mar 15 20:12:41 2023
+
+Wall Time:        9.14 seconds
+
+                                                       Time (seconds)
+Module                                       User      System        Wall        Calls
+
+--------------------------------------------------------------------------------------
+
+**************************************************************************************
+
+Host: iZbp1fiaizyql9luphff4fZ
+
+Timers On : Wed Mar 15 20:18:59 2023
+Timers Off: Wed Mar 15 20:19:08 2023
+
+Wall Time:        9.25 seconds
+
+                                                       Time (seconds)
+Module                                       User      System        Wall        Calls
+
+--------------------------------------------------------------------------------------
+
+**************************************************************************************
+
+Host: iZbp1fiaizyql9luphff4fZ
+
+Timers On : Wed Mar 15 20:23:45 2023
+Timers Off: Wed Mar 15 20:23:55 2023
+
+Wall Time:        9.89 seconds
+
+                                                       Time (seconds)
+Module                                       User      System        Wall        Calls
+
+--------------------------------------------------------------------------------------
+
+**************************************************************************************
