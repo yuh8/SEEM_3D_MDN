@@ -73,6 +73,13 @@ def get_mol_probs(mol_pred, r_pred, num_gens, FF=True):
         mol_probs.append(mol_prob)
     return mol_probs
 
+def random_mol(mol):
+    mol.SetProp("_canonicalRankingNumbers", "True")
+    idxs = list(range(0, mol.GetNumAtoms()))
+    shuffle(idxs)
+    for i, v in enumerate(idxs):
+        mol.GetAtomWithIdx(i).SetProp("_canonicalRankingNumber", str(v))
+    return mol
 
 def compute_cov_mat(smiles_path, g_net, decoder_net):
     drugs_file = "/mnt/raw_data/rdkit_folder/summary_qm9.json"
@@ -113,6 +120,7 @@ def compute_cov_mat(smiles_path, g_net, decoder_net):
         num_gens = num_refs * 2
 
         mol_pred = deepcopy(conf_df.iloc[0].rd_mol)
+        mol_pred=random_mol(mol_pred)
 
         try:
             r_pred = get_prediction(mol_pred, num_gens, g_net, decoder_net)
