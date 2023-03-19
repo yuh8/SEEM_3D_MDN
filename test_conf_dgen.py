@@ -88,7 +88,6 @@ def compute_cov_mat(smiles_path, g_net, decoder_net):
 
     smiles = pickle_load(smiles_path)
     # shuffle(smiles)
-    breakpoint()
 
     cov_means = []
     cov_meds = []

@@ -99,50 +99,30 @@ def get_ensemble_energy(out_data):
     ])
 
 
-def compute_energy_stats(smiles_path, g_net, decoder_net):
-    drugs_file = "/mnt/raw_data/rdkit_folder/summary_qm9.json"
-    with open(drugs_file, "r") as f:
-        drugs_summ = json.load(f)
+def compute_energy_stats(num_gens, g_net, decoder_net):
+    with open('packed_qm9_property.pkl', 'rb') as fp:
+        drugs_summ = pickle.load(fp)
 
-    prop_cal = PropertyCalculator(threads=16, memory=24, seed=2021)
-
-    smiles = pickle_load(smiles_path)
+    prop_cal = PropertyCalculator(threads=8, memory=16, seed=2021)
     all_diff = []
-    for idx, smi in enumerate(smiles):
-        try:
-            mol_path = "/mnt/raw_data/rdkit_folder/" + drugs_summ[smi]['pickle_path']
-            with open(mol_path, "rb") as f:
-                mol_dict = pickle.load(f)
-        except:
-            print('smiles missing')
-            continue
+    for smi in drugs_summ.keys():
 
-        conf_df = pd.DataFrame(mol_dict['conformers'])
-        conf_df.sort_values(by=['boltzmannweight'], ascending=False, inplace=True)
+        rd_mol = drugs_summ[smi]['rdmol']
 
-        num_refs = conf_df.shape[0]
-
-        if num_refs < 50:
-            continue
-
-        if num_refs > 100:
-            continue
-
-        num_gens = num_refs * 2
-
-        mol_pred = deepcopy(conf_df.iloc[0].rd_mol)
-
+        mol_pred = deepcopy(rd_mol)
+        mol_origin = deepcopy(rd_mol)
+        num_refs = len(drugs_summ[smi]['confs'])
+        num_gens = 50
         try:
             r_pred = get_prediction(mol_pred, num_gens, g_net, decoder_net)
         except:
             continue
 
         mol_probs = get_mol_probs(mol_pred, r_pred, num_gens, FF=False)
-        mol_refs = [deepcopy(mol_row.rd_mol) for _, mol_row in conf_df.iterrows()]
+        mol_refs = get_mol_probs(mol_origin, drugs_summ[smi]['confs'], num_refs,FF=False)
 
-        prop_gts = get_ensemble_energy(prop_cal(mol_refs)) * 27.211
         prop_gen = get_ensemble_energy(prop_cal(mol_probs)) * 27.211
-
+        prop_gts = get_ensemble_energy(prop_cal(mol_refs)) * 27.211
         prop_diff = np.abs(prop_gts - prop_gen)
 
         print('\nProperty: %s' % smi)
@@ -150,15 +130,6 @@ def compute_energy_stats(smiles_path, g_net, decoder_net):
         print('  Gen :', prop_gen)
         print('  Diff:', prop_diff)
         all_diff.append(prop_diff.reshape(1, -1))
-        if len(all_diff) > 100:
-            break
-
-        if len(all_diff) % 10 == 0:
-            print(f'[Difference] for {len(all_diff)} molecules')
-            print('  Mean:  ', np.mean(all_diff, axis=0))
-            print('  Median:', np.median(all_diff, axis=0))
-            print('  Std:   ', np.std(all_diff, axis=0))
-
     all_diff = np.vstack(all_diff)  # (num_mols, 4)
     print(all_diff.shape)
 

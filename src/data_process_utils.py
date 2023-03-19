@@ -99,24 +99,23 @@ def mol_to_tensor(mol):
     conf = mol.GetConformer(0)
     graph, max_neighbor_len = mol_to_extended_graph(mol)
 
-    for atom in mol.GetAtoms():
-        atom_idx = atom.GetIdx()
-        node_feature = get_node_feature(mol, atom_idx)
-        smi_graph[atom_idx, atom_idx, :len(node_feature)] = node_feature
-        smi_graph[atom_idx, atom_idx, -3:] = conf.GetAtomPosition(atom_idx)
-        R[atom_idx, :] = conf.GetAtomPosition(atom_idx)
+    for node in graph.nodes:
+        node_feature = get_node_feature(mol, node)
+        smi_graph[node, node, :len(node_feature)] = node_feature
+        smi_graph[node, node, -3:] = conf.GetAtomPosition(node)
+        R[node, :] = conf.GetAtomPosition(node)
 
-    for (source_idx, sink_idx) in graph.edges:
-        kind = graph.edges[(source_idx, sink_idx)]['kind']
-        edge_feature, dist = get_edge_feature(mol, source_idx, sink_idx, kind, max_neighbor_len)
-        node_feature = get_node_feature(mol, source_idx) + get_node_feature(mol, sink_idx)
-        smi_graph[source_idx, sink_idx, :len(node_feature)] = node_feature
-        smi_graph[sink_idx, source_idx, :len(node_feature)] = node_feature
+    for (source_node, sink_node) in graph.edges:
+        kind = graph.edges[(source_node, sink_node)]['kind']
+        edge_feature, dist = get_edge_feature(mol, source_node, sink_node, kind, max_neighbor_len)
+        node_feature = get_node_feature(mol, source_node) + get_node_feature(mol, sink_node)
+        smi_graph[source_node, sink_node, :len(node_feature)] = node_feature
+        smi_graph[sink_node, source_node, :len(node_feature)] = node_feature
 
-        smi_graph[source_idx, sink_idx, len(node_feature):-4] = edge_feature
-        smi_graph[sink_idx, source_idx, len(node_feature):-4] = edge_feature
-        smi_graph[source_idx, sink_idx, -4] = dist
-        smi_graph[sink_idx, source_idx, -4] = dist
+        smi_graph[source_node, sink_node, len(node_feature):-4] = edge_feature
+        smi_graph[sink_node, source_node, len(node_feature):-4] = edge_feature
+        smi_graph[source_node, sink_node, -4] = dist
+        smi_graph[sink_node, source_node, -4] = dist
 
     return smi_graph, R
 

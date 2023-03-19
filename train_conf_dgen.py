@@ -7,6 +7,7 @@ from tensorflow import keras
 from tensorflow.keras import Model
 from tensorflow.keras import callbacks
 from multiprocessing import freeze_support
+from test_conf_dgen import compute_cov_mat
 from test_energy_stats_qm9 import compute_energy_stats
 from src.embed_utils import get_g_net, get_gdr_net, get_decode_net
 from src.misc_utils import create_folder, align_conf, tf_contriod

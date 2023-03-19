@@ -214,3 +214,135 @@ Module                                       User      System        Wall       
 --------------------------------------------------------------------------------------
 
 **************************************************************************************
+
+Host: iZbp1fiaizyql9luphff4fZ
+
+Timers On : Thu Mar 16 05:12:38 2023
+Timers Off: Sat Mar 18 10:55:53 2023
+
+Wall Time:   193395.04 seconds
+
+                                                       Time (seconds)
+Module                                       User      System        Wall        Calls
+DFH: sparsity prep                  :   2101.417u    203.550s   1563.125w  21028 calls
+DFH: initialize()                   : 301679.467u  69026.050s  48747.117w  21028 calls
+DFH: AO Construction                :  75497.183u  13429.067s   9164.798w  21028 calls
+DFH: AO-Met. Contraction            : 105192.417u  18944.283s  12710.185w  21028 calls
+HF: Form core H                     :   1604.333u   3174.717s    519.566w  21028 calls
+HF: Form S/X                        :   7223.683u   2889.450s   1108.357w  21028 calls
+HF: Guess                           : 135215.383u 134551.783s  34419.204w  21028 calls
+SAD Guess                           : 128412.767u 132217.267s  33465.240w  21028 calls
+HF: Form G                          : 358003.317u 114750.733s  49452.820w 208624 calls
+JK: D                               :   1607.967u    722.000s    257.673w 208624 calls
+JK: USO2AO                          :    140.083u     61.183s     18.238w 208624 calls
+JK: JK                              : 350533.733u 112227.317s  48281.896w 208624 calls
+DFH: compute_JK()                   : 350501.667u 112218.000s  48278.093w 208624 calls
+DFH: Grabbing AOs                   :      7.317u      3.250s      0.826w 208624 calls
+DFH: compute_J                      :  41036.833u  32933.283s   7773.131w 208624 calls
+DFH: compute_K                      : 299022.717u  72863.767s  38708.008w 208624 calls
+JK: AO2USO                          :      9.567u      2.050s      1.215w 208624 calls
+HF: Form F                          :   7328.750u   8876.283s   1775.190w 208624 calls
+HF: Form D                          :   1665.850u    449.967s    233.522w 208624 calls
+HF: DIIS                            :  20955.867u  11496.633s   3425.864w 187596 calls
+DIISManager::add_entry              :   2552.800u    864.717s    342.866w 187596 calls
+DIISManager::extrapolate            :   5578.017u   2518.700s    834.574w 187596 calls
+bMatrix setup                       :   3967.500u   1818.933s    617.312w 187596 calls
+bMatrix pseudoinverse               :    155.467u     69.167s     20.293w 187596 calls
+New vector                          :   1416.667u    611.183s    192.446w 187596 calls
+HF: Form C                          :  74173.750u  16352.033s   9858.691w 187596 calls
+
+--------------------------------------------------------------------------------------
+DFH: sparsity prep                  :   2101.417u    203.550s   1563.125w  21028 calls
+DFH: initialize()                   : 301679.467u  69026.050s  48747.117w  21028 calls
+| DFH: AO Construction              :  75497.183u  13429.067s   9164.798w  21028 calls
+| DFH: AO-Met. Contraction          : 105192.417u  18944.283s  12710.185w  21028 calls
+HF: Form core H                     :   1604.333u   3174.717s    519.566w  21028 calls
+HF: Form S/X                        :   7223.683u   2889.450s   1108.357w  21028 calls
+HF: Guess                           : 135215.383u 134551.783s  34419.204w  21028 calls
+| SAD Guess                         : 128412.767u 132217.267s  33465.240w  21028 calls
+HF: Form G                          : 358003.317u 114750.733s  49452.820w 208624 calls
+| JK: D                             :   1607.967u    722.000s    257.673w 208624 calls
+| JK: USO2AO                        :    140.083u     61.183s     18.238w 208624 calls
+| JK: JK                            : 350533.733u 112227.317s  48281.896w 208624 calls
+| | DFH: compute_JK()               : 350501.667u 112218.000s  48278.093w 208624 calls
+| | | DFH: Grabbing AOs             :      7.317u      3.250s      0.826w 208624 calls
+| | | DFH: compute_J                :  41036.833u  32933.283s   7773.131w 208624 calls
+| | | DFH: compute_K                : 299022.717u  72863.767s  38708.008w 208624 calls
+| JK: AO2USO                        :      9.567u      2.050s      1.215w 208624 calls
+HF: Form F                          :   7328.750u   8876.283s   1775.190w 208624 calls
+HF: Form D                          :   1665.850u    449.967s    233.522w 208624 calls
+HF: DIIS                            :  20955.867u  11496.633s   3425.864w 187596 calls
+| DIISManager::add_entry            :   2552.800u    864.717s    342.866w 187596 calls
+| DIISManager::extrapolate          :   5578.017u   2518.700s    834.574w 187596 calls
+| | bMatrix setup                   :   3967.500u   1818.933s    617.312w 187596 calls
+| | bMatrix pseudoinverse           :    155.467u     69.167s     20.293w 187596 calls
+| | New vector                      :   1416.667u    611.183s    192.446w 187596 calls
+HF: Form C                          :  74173.750u  16352.033s   9858.691w 187596 calls
+
+**************************************************************************************
+
+Host: iZbp1fiaizyql9luphff4fZ
+
+Timers On : Sat Mar 18 21:59:56 2023
+Timers Off: Sun Mar 19 00:39:47 2023
+
+Wall Time:     9591.42 seconds
+
+                                                       Time (seconds)
+Module                                       User      System        Wall        Calls
+DFH: sparsity prep                  :    151.000u      0.450s     93.563w   1824 calls
+DFH: initialize()                   :  23699.550u   1465.583s   2780.358w   1824 calls
+DFH: AO Construction                :   6131.417u    291.017s    658.111w   1824 calls
+DFH: AO-Met. Contraction            :   8497.150u    622.283s    915.258w   1824 calls
+HF: Form core H                     :    164.483u     16.450s     20.258w   1824 calls
+HF: Form S/X                        :    290.917u     19.483s     33.907w   1824 calls
+HF: Guess                           :  12630.250u    800.417s   1410.654w   1824 calls
+SAD Guess                           :  12207.983u    771.483s   1364.657w   1824 calls
+HF: Form G                          :  20473.983u   3039.050s   2419.278w  17683 calls
+JK: D                               :     50.217u      4.617s      6.806w  17683 calls
+JK: USO2AO                          :     13.733u      1.133s      1.014w  17683 calls
+JK: JK                              :  20148.667u   3010.300s   2379.391w  17683 calls
+DFH: compute_JK()                   :  20146.583u   3010.083s   2379.165w  17683 calls
+DFH: Grabbing AOs                   :      0.350u      0.000s      0.044w  17683 calls
+DFH: compute_J                      :   3014.133u     81.850s    319.742w  17683 calls
+DFH: compute_K                      :  16357.150u   2742.767s   1961.926w  17683 calls
+JK: AO2USO                          :      0.483u      0.017s      0.052w  17683 calls
+HF: Form F                          :    219.967u     18.700s     27.646w  17683 calls
+HF: Form D                          :     45.350u      4.200s      5.974w  17683 calls
+HF: DIIS                            :   1079.783u    112.567s    125.837w  15859 calls
+DIISManager::add_entry              :    161.733u     23.000s     17.759w  15859 calls
+DIISManager::extrapolate            :    282.967u     40.883s     33.372w  15859 calls
+bMatrix setup                       :    151.500u     21.100s     18.797w  15859 calls
+bMatrix pseudoinverse               :     17.233u      1.583s      1.611w  15859 calls
+New vector                          :    111.133u     17.883s     12.702w  15859 calls
+HF: Form C                          :   2407.083u    159.500s    282.473w  15859 calls
+
+--------------------------------------------------------------------------------------
+DFH: sparsity prep                  :    151.000u      0.450s     93.563w   1824 calls
+DFH: initialize()                   :  23699.550u   1465.583s   2780.358w   1824 calls
+| DFH: AO Construction              :   6131.417u    291.017s    658.111w   1824 calls
+| DFH: AO-Met. Contraction          :   8497.150u    622.283s    915.258w   1824 calls
+HF: Form core H                     :    164.483u     16.450s     20.258w   1824 calls
+HF: Form S/X                        :    290.917u     19.483s     33.907w   1824 calls
+HF: Guess                           :  12630.250u    800.417s   1410.654w   1824 calls
+| SAD Guess                         :  12207.983u    771.483s   1364.657w   1824 calls
+HF: Form G                          :  20473.983u   3039.050s   2419.278w  17683 calls
+| JK: D                             :     50.217u      4.617s      6.806w  17683 calls
+| JK: USO2AO                        :     13.733u      1.133s      1.014w  17683 calls
+| JK: JK                            :  20148.667u   3010.300s   2379.391w  17683 calls
+| | DFH: compute_JK()               :  20146.583u   3010.083s   2379.165w  17683 calls
+| | | DFH: Grabbing AOs             :      0.350u      0.000s      0.044w  17683 calls
+| | | DFH: compute_J                :   3014.133u     81.850s    319.742w  17683 calls
+| | | DFH: compute_K                :  16357.150u   2742.767s   1961.926w  17683 calls
+| JK: AO2USO                        :      0.483u      0.017s      0.052w  17683 calls
+HF: Form F                          :    219.967u     18.700s     27.646w  17683 calls
+HF: Form D                          :     45.350u      4.200s      5.974w  17683 calls
+HF: DIIS                            :   1079.783u    112.567s    125.837w  15859 calls
+| DIISManager::add_entry            :    161.733u     23.000s     17.759w  15859 calls
+| DIISManager::extrapolate          :    282.967u     40.883s     33.372w  15859 calls
+| | bMatrix setup                   :    151.500u     21.100s     18.797w  15859 calls
+| | bMatrix pseudoinverse           :     17.233u      1.583s      1.611w  15859 calls
+| | New vector                      :    111.133u     17.883s     12.702w  15859 calls
+HF: Form C                          :   2407.083u    159.500s    282.473w  15859 calls
+
+**************************************************************************************
