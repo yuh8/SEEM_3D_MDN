@@ -19,7 +19,11 @@ def mol_to_extended_graph(molecule: Mol, seed: int = 0) -> Graph:
     rng = np.random.default_rng(seed=seed)
     start = rng.integers(low=0, high=mol_len, size=1).item()
     bond_graph = build_bond_graph(molecule)
-    sequence = get_random_bf_sequence(graph=bond_graph, start=start, rng=rng)
+    visited = set()
+    bfs_traversal = list()
+    sequence = get_random_bf_sequence(graph=bond_graph, start=start,
+                                      visited=visited,
+                                      bfs_traversal=bfs_traversal)
 
     assert mol_len == len(sequence), 'disconnected graph'
     assert np.max(sequence) == mol_len - 1, 'disconnected graph'
@@ -89,20 +93,31 @@ def get_neighborhoods(graph: Graph, source: int, max_distance: int) -> List[List
     return neighborhoods
 
 
-def get_random_bf_sequence(graph: Graph, start: int, rng: np.random.Generator) -> List[int]:
-    visited_list = [start]
-    queue = [start]
+def get_random_bf_sequence(graph: Graph, start: int, visited: set, bfs_traversal: list) -> List[int]:
+    if start not in visited:
+        bfs_traversal.append(start)
+        visited.add(start)
 
-    while len(queue):
-        node = queue.pop(0)
+        for neighbor_node in graph.neighbors(start):
+            get_random_bf_sequence(graph, neighbor_node, visited, bfs_traversal)
 
-        # shuffle neighbors
-        neighbors = list(graph.neighbors(node))
-        rng.shuffle(neighbors)
+    return bfs_traversal
 
-        for neighbor in neighbors:
-            if neighbor not in visited_list:
-                visited_list.append(neighbor)
-                queue.append(neighbor)
 
-    return visited_list
+# def get_random_bf_sequence(graph: Graph, start: int, rng: np.random.Generator) -> List[int]:
+#     visited_list = [start]
+#     queue = [start]
+
+#     while len(queue):
+#         node = queue.pop(0)
+
+#         # shuffle neighbors
+#         neighbors = list(graph.neighbors(node))
+#         rng.shuffle(neighbors)
+
+#         for neighbor in neighbors:
+#             if neighbor not in visited_list:
+#                 visited_list.append(neighbor)
+#                 queue.append(neighbor)
+
+#     return visited_list

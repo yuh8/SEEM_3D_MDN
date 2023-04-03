@@ -3,6 +3,7 @@ import json
 import pickle
 import numpy as np
 import pandas as pd
+from tqdm import tqdm
 from sklearn.model_selection import train_test_split
 from src.data_process_utils import mol_to_tensor
 from src.graph_utils import draw_mol_with_idx
@@ -40,7 +41,7 @@ def get_and_save_data_batch(smiles_path, dest_data_path, batch_num=200000):
 
     smiles = pickle_load(smiles_path)
     batch = 0
-    for smi in smiles:
+    for smi in tqdm(smiles):
         try:
             mol_path = "/mnt/raw_data/rdkit_folder/" + drugs_summ[smi]['pickle_path']
             with open(mol_path, "rb") as f:
@@ -60,7 +61,7 @@ def get_and_save_data_batch(smiles_path, dest_data_path, batch_num=200000):
                 g, r = mol_to_tensor(mol)
             except Exception as e:
                 # draw_mol_with_idx(mol)
-                print(e)
+                # print(e)
                 continue
 
             np.savez_compressed(dest_data_path + f'GDR_{batch}', G=g, R=r)
@@ -144,9 +145,9 @@ if __name__ == "__main__":
     # get_num_of_disconnected_graphs()
     # get_num_atoms_dist()
     get_train_val_test_smiles()
-    # get_and_save_data_batch('/mnt/raw_data/transvae/train_data/train_batch/smiles.pkl',
-    #                         '/mnt/raw_data/transvae/train_data/train_batch/')
-    # get_and_save_data_batch('/mnt/raw_data/transvae/test_data/val_batch/smiles.pkl',
-    #                         '/mnt/raw_data/transvae/test_data/val_batch/', batch_num=2500)
+    get_and_save_data_batch('/mnt/raw_data/transvae/train_data/train_batch/smiles.pkl',
+                            '/mnt/raw_data/transvae/train_data/train_batch/')
+    get_and_save_data_batch('/mnt/raw_data/transvae/test_data/val_batch/smiles.pkl',
+                            '/mnt/raw_data/transvae/test_data/val_batch/', batch_num=2500)
     get_and_save_data_batch('/mnt/raw_data/transvae/test_data/test_batch/smiles.pkl',
                             '/mnt/raw_data/transvae/test_data/test_batch/', batch_num=20000)

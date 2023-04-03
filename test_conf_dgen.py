@@ -63,9 +63,16 @@ def get_best_RMSD(probe, ref, prbid=-1, refid=-1):
     return rmsd
 
 
+def unshuffle(r_pred, sequence):
+    new_r_pred = np.zeros_like(r_pred)
+    for idx, seq in enumerate(sequence):
+        new_r_pred[seq] = r_pred[idx]
+    return new_r_pred
+
+
 def get_prediction(mol, sample_size, g_net, decoder_net):
     mol_origin = deepcopy(mol)
-    gr, _ = mol_to_tensor(mol_origin)
+    gr, sequence = mol_to_tensor(mol_origin, infer=True)
     g = np.expand_dims(gr, axis=0)[..., :-4]
     mask = np.sum(np.abs(g), axis=-1)
     mask = np.sum(mask, axis=1, keepdims=True) <= 0
@@ -77,7 +84,11 @@ def get_prediction(mol, sample_size, g_net, decoder_net):
     z = np.random.normal(0, 1, size=(sample_size, MAX_NUM_ATOMS, HIDDEN_SIZE))
     with tf.device('/cpu:0'):
         r_pred = decoder_net.predict([h, mask, z]) * (1 - np.squeeze(mask)[..., np.newaxis])
-    return r_pred
+
+    new_r_preds = []
+    for _r_pred in r_pred:
+        new_r_preds.append(unshuffle(_r_pred, sequence))
+    return new_r_preds
 
 
 def get_mol_probs(mol_pred, r_pred, num_gens, FF=True):
@@ -106,7 +117,6 @@ def compute_cov_mat(smiles_path, g_net, decoder_net):
 
     covs = []
     mats = []
-    breakpoint()
     for idx, smi in enumerate(smiles):
         try:
             mol_path = "/mnt/raw_data/rdkit_folder/" + drugs_summ[smi]['pickle_path']

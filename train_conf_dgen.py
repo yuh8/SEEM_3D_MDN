@@ -7,7 +7,7 @@ from tensorflow import keras
 from tensorflow.keras import Model
 from tensorflow.keras import callbacks
 from multiprocessing import freeze_support
-from test_energy_drugs import compute_energy_stats
+from test_conf_dgen import compute_cov_mat
 from src.embed_utils import get_g_net, get_gdr_net, get_decode_net
 from src.misc_utils import create_folder, align_conf, tf_contriod
 from src.CONSTS import (MAX_NUM_ATOMS, FEATURE_DEPTH, BATCH_SIZE, VAL_BATCH_SIZE,
@@ -78,8 +78,9 @@ class WarmDecay(tf.keras.optimizers.schedules.LearningRateSchedule):
         self.warmup_steps = warmup_steps
 
     def __call__(self, step):
-        arg1 = tf.math.rsqrt(step)
-        arg2 = step * (self.warmup_steps ** -1.5)
+        fp_step = tf.cast(step, tf.float32)
+        arg1 = tf.math.rsqrt(fp_step)
+        arg2 = fp_step * (self.warmup_steps ** -1.5)
 
         return tf.math.rsqrt(self.d_model) * tf.math.minimum(arg1, arg2)
 
@@ -227,7 +228,7 @@ def _fixup_shape(x, y):
 
 if __name__ == "__main__":
     freeze_support()
-    ckpt_path = 'checkpoints/TransVAE_1M/'
+    ckpt_path = 'checkpoints/TransVAE_1M_random/'
     create_folder(ckpt_path)
     create_folder("dec_net")
     create_folder("gdr_net")
@@ -251,7 +252,7 @@ if __name__ == "__main__":
     callbacks = [tf.keras.callbacks.ModelCheckpoint(ckpt_path,
                                                     save_freq=1000,
                                                     save_weights_only=True),
-                 tf.keras.callbacks.TensorBoard('./logs_transvae_1m', update_freq=10),
+                 tf.keras.callbacks.TensorBoard('./logs_transvae_1m_random', update_freq=10),
                  weight_adjuster]
 
     # compile model
@@ -262,7 +263,7 @@ if __name__ == "__main__":
     transvae.summary()
 
     try:
-        transvae.load_weights("./checkpoints/TransVAE_1M/")
+        transvae.load_weights("./checkpoints/TransVAE_1M_random/")
     except:
         print('no exitsing model detected, training starts afresh')
         pass
@@ -286,13 +287,13 @@ if __name__ == "__main__":
     # val_dataset = val_dataset.batch(VAL_BATCH_SIZE, drop_remainder=True).map(_fixup_shape)
     # val_dataset = val_dataset.prefetch(tf.data.experimental.AUTOTUNE)
 
-    test_dataset = tf.data.Dataset.from_generator(
-        data_iterator_test,
-        output_types=(tf.float32, tf.float32),
-        output_shapes=((MAX_NUM_ATOMS, MAX_NUM_ATOMS, FEATURE_DEPTH + 4),
-                       (MAX_NUM_ATOMS, 3)))
-    test_dataset = test_dataset.batch(VAL_BATCH_SIZE, drop_remainder=True).map(_fixup_shape)
-    test_dataset = test_dataset.prefetch(tf.data.experimental.AUTOTUNE)
+    # test_dataset = tf.data.Dataset.from_generator(
+    #     data_iterator_test,
+    #     output_types=(tf.float32, tf.float32),
+    #     output_shapes=((MAX_NUM_ATOMS, MAX_NUM_ATOMS, FEATURE_DEPTH + 4),
+    #                    (MAX_NUM_ATOMS, 3)))
+    # test_dataset = test_dataset.batch(VAL_BATCH_SIZE, drop_remainder=True).map(_fixup_shape)
+    # test_dataset = test_dataset.prefetch(tf.data.experimental.AUTOTUNE)
 
     # transvae.fit(train_dataset,
     #              epochs=MAX_EPOCH,
@@ -304,6 +305,7 @@ if __name__ == "__main__":
     #                         return_dict=True)
 
     test_path = '/mnt/raw_data/transvae/test_data/test_batch/'
+    compute_cov_mat(test_path + 'smiles.pkl', g_net, dec_net)
 
     # save trained model
     g_net.compile(optimizer='SGD', loss=None)
@@ -312,6 +314,3 @@ if __name__ == "__main__":
     gdr_net.save('gr_net/' + 'GDRNet')
     dec_net.compile(optimizer='adam', loss=None)
     dec_net.save('dec_net/' + 'DecNet')
-
-    compute_energy_stats(test_path + 'smiles.pkl', g_net, dec_net)
-    compute_cov_mat(test_path + 'smiles.pkl', g_net, dec_net)
