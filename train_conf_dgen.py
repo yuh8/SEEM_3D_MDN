@@ -7,7 +7,7 @@ from tensorflow import keras
 from tensorflow.keras import Model
 from tensorflow.keras import callbacks
 from multiprocessing import freeze_support
-from test_conf_dgen import compute_cov_mat
+from test_conf_dgen import compute_cov_mat, get_conformation_samples
 from src.embed_utils import get_g_net, get_gdr_net, get_decode_net
 from src.misc_utils import create_folder, align_conf, tf_contriod
 from src.CONSTS import (MAX_NUM_ATOMS, FEATURE_DEPTH, BATCH_SIZE, VAL_BATCH_SIZE,
@@ -305,7 +305,8 @@ if __name__ == "__main__":
     #                         return_dict=True)
 
     test_path = '/mnt/raw_data/transvae/test_data/test_batch/'
-    compute_cov_mat(test_path + 'smiles.pkl', g_net, dec_net)
+    # compute_cov_mat(test_path + 'smiles.pkl', g_net, dec_net)
+    get_conformation_samples(test_path + 'smiles.pkl', g_net, dec_net)
 
     # save trained model
     g_net.compile(optimizer='SGD', loss=None)

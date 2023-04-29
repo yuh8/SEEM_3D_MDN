@@ -1,8 +1,16 @@
 import numpy as np
 from networkx import Graph
+from rdkit import Chem
+from rdkit.Chem import Draw
 from rdkit.Chem.rdchem import Mol
 from rdkit.Chem.Draw import rdMolDraw2D
 from typing import List
+
+
+def draw_smiles(smi, file_name):
+    mol = Chem.MolFromSmiles(smi)
+    Chem.Kekulize(mol, clearAromaticFlags=True)
+    Draw.MolToFile(mol, '{}.png'.format(file_name))
 
 
 def draw_mol_with_idx(mol):

@@ -94,7 +94,7 @@ def get_mol_probs(mol_pred, r_pred, num_gens, FF=True):
     return mol_probs
 
 
-def compute_cov_mat(smiles_path):
+def get_conformation_samples(smiles_path):
     drugs_file = "/mnt/rdkit_folder/summary_drugs.json"
     with open(drugs_file, "r") as f:
         drugs_summ = json.load(f)

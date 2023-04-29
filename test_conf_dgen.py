@@ -16,7 +16,8 @@ from rdkit.Chem.rdForceFieldHelpers import MMFFOptimizeMolecule
 from rdkit.Chem.rdmolops import RemoveHs
 from rdkit.Chem.rdMolAlign import GetBestRMS
 from src.data_process_utils import mol_to_tensor
-from src.misc_utils import pickle_load
+from src.graph_utils import draw_smiles
+from src.misc_utils import pickle_load, pickle_save, create_folder
 from src.CONSTS import HIDDEN_SIZE, MAX_NUM_ATOMS, TF_EPS
 
 tfd = tfp.distributions
@@ -101,6 +102,71 @@ def get_mol_probs(mol_pred, r_pred, num_gens, FF=True):
             MMFFOptimizeMolecule(mol_prob)
         mol_probs.append(mol_prob)
     return mol_probs
+
+
+def get_conformation_samples(smiles_path, g_net, decoder_net):
+    drugs_file = "/mnt/raw_data/rdkit_folder/summary_drugs.json"
+    create_folder('./gen_samples/')
+    with open(drugs_file, "r") as f:
+        drugs_summ = json.load(f)
+
+    smiles = pickle_load(smiles_path)
+    # shuffle(smiles)
+
+    for idx, smi in enumerate(smiles[:1000]):
+        try:
+            mol_path = "/mnt/raw_data/rdkit_folder/" + drugs_summ[smi]['pickle_path']
+            with open(mol_path, "rb") as f:
+                mol_dict = pickle.load(f)
+        except:
+            print('smiles missing')
+            continue
+
+        conf_df = pd.DataFrame(mol_dict['conformers'])
+        conf_df.sort_values(by=['boltzmannweight'], ascending=False, inplace=True)
+
+        num_refs = conf_df.shape[0]
+
+        if num_refs < 50:
+            continue
+
+        if num_refs > 100:
+            continue
+
+        num_gens = num_refs * 2
+
+        mol_pred = deepcopy(conf_df.iloc[0].rd_mol)
+
+        try:
+            r_pred = get_prediction(mol_pred, num_gens, g_net, decoder_net)
+        except:
+            continue
+
+        cov_mat = np.zeros((conf_df.shape[0], num_gens))
+
+        cnt = 0
+        gen_confs = []
+        ref_confs = []
+        try:
+            mol_probs = get_mol_probs(mol_pred, r_pred, num_gens, FF=True)
+            for _, mol_row in conf_df.iterrows():
+                mol_ref = deepcopy(mol_row.rd_mol)
+                for j in range(num_gens):
+                    rmsd = get_best_RMSD(mol_probs[j], mol_ref)
+                    cov_mat[cnt, j] = rmsd
+                best_idx = np.argmin(cov_mat[cnt])
+                gen_confs.append(mol_probs[best_idx])
+                ref_confs.append(mol_ref)
+
+                if len(gen_confs) == 5:
+                    break
+                cnt += 1
+            if cov_mat[:5].min(-1).mean() < 0.7:
+                draw_smiles(smi, f'./gen_samples/smi_{idx}')
+                pickle_save(gen_confs, f'./gen_samples/gen_conf_{idx}.pkl')
+                pickle_save(ref_confs, f'./gen_samples/ref_conf_{idx}.pkl')
+        except:
+            continue
 
 
 def compute_cov_mat(smiles_path, g_net, decoder_net):
@@ -202,4 +268,5 @@ if __name__ == "__main__":
     breakpoint()
     test_path = '/mnt/raw_data/transvae/test_data/test_batch/'
 
-    compute_cov_mat(test_path + 'smiles.pkl')
+    compute_cov_mat(test_path + 'smiles.pkl', g_net, decoder_net)
+    get_conformation_samples(test_path, g_net, decoder_net)
